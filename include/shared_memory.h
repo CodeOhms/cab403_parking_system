@@ -1,59 +1,59 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include <pthread.h>
 
-typedef struct shared_mem;
-
-struct license_plate_sensor
+typedef struct license_plate_sensor_t
 {
-    pthread_mutex_t ;
-    pthread_cond_t ;
+    pthread_mutex_t lplate_sensor_mutex;
+    pthread_cond_t lplate_sensor_update_flag;
     char license_plate[6];
-};
+} license_plate_sensor_t;
 
-enum boom_gate_state
+typedef enum boom_gate_state_t
 {
     C,
     O,
     R,
     L
-};
+} boom_gate_state_t;
 
-struct boom_gate
+typedef struct boom_gate_t
 {
-    pthread_mutex_t ;
-    pthread_cond_t ;
-    boom_gate_state bg_state;
-};
+    pthread_mutex_t bgate_mutex;
+    pthread_cond_t bgate_update_flag;
+    boom_gate_state_t bgate_state;
+} boom_gate_t;
 
-/*
-The information sign is very basic and only has room to display a single character. It is used
-to show information to drivers at various points:
-● When the driver pulls up in front of the entrance boom gate and triggers the LPR, the
-sign will show a character between ‘1’ and ‘5’ to indicate which floor the driver should
-park on.
-● If the driver is unable to access the car park due to not being in the access file, the
-sign will show the character ‘X’.
-● If the driver is unable to access the car park due to it being full, the sign will show the
-character ‘F’.
-● In the case of a fire, the information sign will cycle through the characters ‘E’ ‘V’ ‘A’
-‘C’ ‘U’ ‘A’ ‘T’ ‘E’ ‘ ‘, spending 20ms on each character and then looping back to the
-first ‘E’ after displaying the space character..
-*/
-
-
-struct information_sign
+typedef struct information_sign_t
 {
-    pthread_mutex_t ;
-    pthread_cond_t ;
+    pthread_mutex_t info_sign_mutex;
+    pthread_cond_t info_sign_update_flag;
     char display[1];
-};
+} information_sign_t;
 
-struct entrance
+typedef struct entrance_t
 {
-    license_plate_sensor lplate_sensor;
-    boom_gate bgate;
-    information_sign info_sign;
-};
+    license_plate_sensor_t lplate_sensor;
+    boom_gate_t bgate;
+    information_sign_t info_sign;
+} entrance_t;
 
-struct shared_mem
+typedef struct exit_t
 {
+    license_plate_sensor_t lplate_sensor;
+    boom_gate_t boom_gate;
+} exit_t;
 
-};
+typedef struct level_t
+{
+    license_plate_sensor_t lplate_sensor;
+    uint16_t temp_sensor;
+    bool alarm;
+} level_t;
+
+typedef struct shared_mem_t
+{
+    entrance_t entrances[5];
+    exit_t exits[5];
+    level_t levels[5];
+} shared_mem_t;
