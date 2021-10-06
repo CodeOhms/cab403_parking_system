@@ -1,3 +1,5 @@
+#ifndef  SHARED_MEMORY_H
+#define  SHARED_MEMORY_H
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
@@ -47,8 +49,8 @@ typedef struct exit_t
 typedef struct level_t
 {
     license_plate_sensor_t lplate_sensor;
-    uint16_t temp_sensor;
-    bool alarm;
+    volatile uint16_t temp_sensor;
+    volatile bool alarm;
 } level_t;
 
 typedef struct shared_mem_t
@@ -57,3 +59,5 @@ typedef struct shared_mem_t
     exit_t exits[5];
     level_t levels[5];
 } shared_mem_t;
+
+#endif //SHARED_MEMORY_H
