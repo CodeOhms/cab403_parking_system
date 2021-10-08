@@ -9,6 +9,7 @@
 
 // Create variable
 char license_plate[1000][6];
+int license_plate_length = 0;
 
 // Setup License plate for reading
 void lp_list ( void ) {
@@ -18,15 +19,13 @@ void lp_list ( void ) {
     const unsigned MAX_LENGTH = 256;
     char buffer[6];
 
-    // Counter to assign array
-    int counter = 0;
-
     // Assign Characters to Array
     while (fgets(buffer, MAX_LENGTH, plate)) {
+
         for (int i = 0; i < 6; i++) {
-        license_plate[counter][i] = buffer[i];
+        license_plate[license_plate_length][i] = buffer[i];
         }
-        counter++;
+        license_plate_length++;
 
     }
 
@@ -35,22 +34,38 @@ void lp_list ( void ) {
 
 }
 
+// Function for Scanning For license Plate
+int lp_scan(char license[6]){
+
+    for (int i = 0; i < license_plate_length; i++){
+        
+        // Create Variable for checking
+        int check = 1;
+
+        // Check if characters match
+        for (int j = 0; j < 6; j++){
+            check = check * (license_plate[i][j] == license[j]);
+        }
+
+        // Check Variable
+        if (check == 1)
+        {
+            printf("Match Found \n");
+            return 1;
+        }
+        
+    }
+
+    printf("No Match\n");
+    return 0;
+}
 
 int main()
 {
     // Initialise
-        // License Plate List
+
     lp_list();
 
-    // Testing from list
-    int license_no = 1;
-
-    printf("Plate No.%d is : ");
-    for (int i = 0; i < 6; i++)
-    {
-        printf("%c", license_plate[license_no][i]);
-    }
-    printf("\n");
 
     // Car Status
         // Monitor Status of LPR Sensor and Keep track of each char
@@ -68,4 +83,21 @@ int main()
         // Signs Display
 
         // Display current status of parking 
+
+
+
+    // TESTING FUNCTIONS //
+        // License Plate
+            // Testing from list
+    int license_no = 1;
+
+    printf("Plate No.%d is : ",license_no + 1);
+    for (int i = 0; i < 6; i++)
+    {
+        printf("%c", license_plate[license_no][i]);
+    }
+    printf("\n");
+
+    // Scanning for License Plate
+    lp_scan("177BLJ");
 }
