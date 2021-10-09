@@ -12,7 +12,7 @@
  * 
  * @returns Void.
  */
-void timing_manager_init(void (*thread_pool_register)(void (*func)(void *)));
+void timing_manager_init(void (*thread_pool_register)(void (*func)(void *), void *));
 
 /**
  * @brief Use to register a function and its delay to the timing manager list.
@@ -26,13 +26,16 @@ void timing_manager_register_function();
 
 /**
  * @brief Responsible for calling registered functions after a specified delay.
+ * Uses a linked list, containing registered functions, and services them in
+ * FIFO order.
  * 
  * @returns Void.
  */
 void timing_manager_loop(void);
 
 /**
- * @brief Call to stop timing manager.
+ * @brief Call to stop timing manager. Must be called from another thread
+ * as `timing_manager_loop` operates in an infinite loop.
  *
  * @returns Void.
  */
