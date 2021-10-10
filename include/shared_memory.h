@@ -4,11 +4,13 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#define LICENSE_PLATE_LENGTH 6
+
 typedef struct license_plate_sensor_t
 {
     pthread_mutex_t lplate_sensor_mutex;
     pthread_cond_t lplate_sensor_update_flag;
-    char license_plate[6];
+    char license_plate[LICENSE_PLATE_LENGTH];
 } license_plate_sensor_t;
 
 typedef enum boom_gate_state_t
