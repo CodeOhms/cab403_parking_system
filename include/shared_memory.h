@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 
 #define LICENSE_PLATE_LENGTH 6
 
@@ -55,11 +57,35 @@ typedef struct level_t
     volatile bool alarm;
 } level_t;
 
-typedef struct shared_mem_t
+typedef struct shared_data_t
 {
     entrance_t entrances[5];
     exit_t exits[5];
     level_t levels[5];
+} shared_data_t;
+
+/* Structure to manage the shared memory data */
+typedef struct shared_mem_t
+{
+    /* File descriptor of shared memory object: */
+    int fd;
+
+    /* Pointer to the shared data structure: */
+    shared_data_t *data;
 } shared_mem_t;
+
+const char* shm_name = "PARKING";
+const size_t shm_size = sizeof(shared_data_t);
+
+/**
+ * @brief Attach to shared memory. If it already exists from a previous
+ * instance of the simulation then it will overwrite it.
+ * 
+ * @param shm A pointer to type of shared memory object. This will be allocated
+ * memory and shared memory object instantiated.
+ * 
+ * @return Boolen indicating success or failure of attaching to shared memory.
+ */
+bool shared_mem_attach(shared_mem_t* shm);
 
 #endif //SHARED_MEMORY_H

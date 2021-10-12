@@ -9,6 +9,102 @@
 
 bool _quit;
 
+//////////////////// Shared memory functionality:
+
+/**
+ * @brief Initialise a shared_object_t, creating a block of shared memory
+ * with the designated name, and setting its storage capacity to the size of a
+ * shared data block.
+ *
+ * PRE: n/a
+ *
+ * POST: shm_unlink has been invoked to delete any previous instance of the
+ *       shared memory object, if it exists.
+ * AND   The share name has been saved in shm->name.
+ * AND   shm_open has been invoked to obtain a file descriptor connected to a
+ *       newly created shared memory object with size equal to the size of a
+ *       shared_data_t struct, with support for read and write operations. The
+ *       file descriptor should be saved in shm->fd, regardless of the final outcome.
+ * AND   ftruncate has been invoked to set the size of the shared memory object
+ *       equal to the size of a shared_data_t struct.
+ * AND   mmap has been invoked to obtain a pointer to the shared memory, and the
+ *       result has been stored in shm->data, regardless of the final outcome.
+ * AND   (this code is provided for you, don't interfere with it) The shared
+ *       semaphore has been initialised to manage access to the shared buffer.
+ * AND   Semaphores have been initialised in a waiting state.
+ *
+ * @param shm The address of a shared memory control structure which will be
+ *            populated by this function.
+ * @param share_name The unique string used to identify the shared memory object.
+ * @returns Returns true if and only if shm->fd >= 0 and shm->data != MAP_FAILED.
+ *          Even if false is returned, shm->fd should contain the value returned
+ *          by shm_open, and shm->data should contain the value returned by mmap.
+ */
+bool create_shared_object(shared_mem_t* shm) {
+    // Remove any previous instance of the shared memory object, if it exists.
+    shm_unlink(shm_name);
+
+    // Assign share name to shm->name.
+    // shm->name = share_name;
+
+    // Create the shared memory object, allowing read-write access, and saving the
+    // resulting file descriptor in shm->fd. If creation failed, ensure 
+    // that shm->data is NULL and return false.
+    if ((shm->fd = shm_open(shm_name, O_CREAT | O_RDWR, 0666)) < 0)
+    {
+        shm->data = NULL;
+        return false;
+    }
+
+    // Set the capacity of the shared memory object via ftruncate. If the 
+    // operation fails, ensure that shm->data is NULL and return false. 
+    if(ftruncate(shm->fd, shm_size) == -1)
+    {
+        shm->data = NULL;
+        return false;
+    }
+
+    // Otherwise, attempt to map the shared memory via mmap, and save the address
+    // in shm->data. If mapping fails, return false.
+    shm->data = mmap(0, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
+    if(shm->data == MAP_FAILED)
+    {
+        return false;
+    }
+
+    // Do not alter the following semaphore initialisation code.
+    // sem_init( &shm->data->controller_semaphore, 1, 0 );
+    // sem_init( &shm->data->worker_semaphore, 1, 0 );
+
+    // If we reach this point we should return true.
+    return true;
+}
+
+/**
+ * @brief Destroys the shared memory object managed by a shared memory
+ * control block.
+ *
+ * PRE: create_shared_object( shm, shm->name ) has previously been
+ *      successfully invoked.
+ *
+ * POST: munmap has been invoked to remove the mapped memory from the address
+ *       space
+ * AND   shm_unlink has been invoked to remove the object
+ * AND   shm->fd == -1
+ * AND   shm->data == NULL.
+ *
+ * \param shm The address of a shared memory control block.
+ */
+void destroy_shared_object( shared_mem_t* shm ) {
+    // Remove the shared memory object.
+    munmap(shm, shm_size);
+    shm_unlink(shm_name);
+    shm->fd = -1;
+    shm->data = NULL;
+}
+
+//////////////////// End shared memory functionality.
+
 //////////////////// Randomisation functionality:
 
 pthread_mutex_t random_gen_mutex;
