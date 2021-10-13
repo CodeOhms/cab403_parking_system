@@ -1,13 +1,36 @@
 #include "linked_list.h"
 
-void llist_init(list_t *self, int (*compare_func)(const void *data1, const void *data2))
+void llist_init(list_t *self, int (*compare_func)(const void *data1, const void *data2),
+    void (*destructor)(void *))
 {
-    /* Allocate memory: */
+    /* Allocate memory for list management structure: */
     self = (list_t *)malloc(sizeof(list_t));
 
     self->head = NULL;
     self->tail = NULL;
     self->compare = compare_func;
+    self->destructor = destructor;
+}
+
+void llist_close(list_t *self)
+{
+    /* Call destructor for each list item: */
+    node_t *current;
+    while(self->head != NULL)
+    {
+        /* Make current node follow the head of the list as it shrinks: */
+        current = self->head;
+        self->head = current->next;
+
+        if(self->destructor != NULL)
+        {
+            self->destructor(current);
+        }
+
+        /* Free memory of current node data, then the node itself: */
+        free(current->data);
+        free(current);
+    }
 }
 
 node_t *llist_find(list_t *self, void *data)
@@ -24,13 +47,13 @@ node_t *llist_find(list_t *self, void *data)
     return NULL;
 }
 
-node_t *llist_push(node_t *head, void *data, size_t data_size)
+node_t *llist_push(list_t *self, void *data, size_t data_size)
 {
     node_t *new_node = NULL;
 
-    if(head->next != NULL)
+    if(self->head->next != NULL)
     { /* Not an empty list */
-        new_node = llist_push_empty(head, data_size);
+        new_node = llist_push_empty(self, data_size);
 
         /* Copy given data to new node: */
         memcpy(new_node, data, data_size);
@@ -39,11 +62,11 @@ node_t *llist_push(node_t *head, void *data, size_t data_size)
     return new_node;    
 }
 
-node_t *llist_push_empty(node_t *head, size_t data_size)
+node_t *llist_push_empty(list_t *self, size_t data_size)
 {
     node_t *new_node = NULL;
 
-    if(head->next != NULL)
+    if(self->head->next != NULL)
     { /* Not an empty list */
         /* Create new node and allocate memory: */
         new_node = (node_t *)malloc(sizeof(node_t));
@@ -52,16 +75,16 @@ node_t *llist_push_empty(node_t *head, size_t data_size)
         void *data = malloc(data_size);
 
         /* 1st node previous pointer connect to new node: */
-        head->next->previous = new_node;
+        self->head->next->previous = new_node;
 
         /* New node point to 1st node: */
-        new_node->next = head->next;
+        new_node->next = self->head->next;
 
         /* New node previous pointer connect to head: */
-        new_node->previous = head;
+        new_node->previous = self->head;
 
         /* Set head to be (point) to new node: */
-        head->next = new_node;
+        self->head->next = new_node;
     }
 
     return new_node;

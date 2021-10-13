@@ -162,16 +162,16 @@ typedef struct car_t
 
 list_t *car_list = NULL;
 
-void generate_license_plate(char *lplate[LICENSE_PLATE_LENGTH])
+void generate_license_plate(char *lplate[license_plate_lenth])
 {
     /* Generate numbers: */
-    for(uint8_t i = 0; i < LICENSE_PLATE_LENGTH/2; ++i)
+    for(uint8_t i = 0; i < license_plate_lenth/2; ++i)
     {
         lplate[i] = random_digit();
     }
 
     /* Generate letters (Capitalised ASCII): */
-    for(uint8_t i = LICENSE_PLATE_LENGTH/2; i < LICENSE_PLATE_LENGTH; ++i)
+    for(uint8_t i = license_plate_lenth/2; i < license_plate_lenth; ++i)
     {
         lplate[i] = random_letter();
     }
@@ -181,7 +181,7 @@ void generate_car(car_t *new_car)
 {
     /* Generate license plate: */
         /* Ensure car doesn't currently exist (no license plate duplicates): */
-    char *lplate[LICENSE_PLATE_LENGTH] = &new_car->license_plate;
+    char *lplate[license_plate_lenth] = &new_car->license_plate;
     generate_license_plate(lplate);
     while(llist_find(car_list, lplate) != NULL)
     {
@@ -198,7 +198,7 @@ void generate_cars_loop()
     while(!_quit)
     {
         /* Create node in linked list for a new car: (This will allocate memory for new car) */
-        node_t *car_node = llist_push_empty(car_list->head, sizeof(car_t));
+        node_t *car_node = llist_push_empty(car_list, sizeof(car_t));
 
         /* Generate car: */
         car_t *new_car = (car_t *)car_node->data;
@@ -212,7 +212,7 @@ void generate_cars_loop()
     }
 }
 
-int car_compare_lplate(char *lplate1[LICENSE_PLATE_LENGTH], char *lplate2[LICENSE_PLATE_LENGTH])
+int car_compare_lplate(char *lplate1[license_plate_lenth], char *lplate2[license_plate_lenth])
 {
     if(strcmp(lplate1, lplate2) == 0)
     { /* Exact match. */
@@ -227,11 +227,74 @@ int car_compare_lplate(char *lplate1[LICENSE_PLATE_LENGTH], char *lplate2[LICENS
     return -1;
 }
 
+void car_data_destroy(void *car_data)
+{
+    car_t *car = (car_t *)car_data;
+
+    /* Join car thread: */
+    pthread_join(&car->sim_thread, NULL);
+}
+
 //////////////////// End car functionality and model.
 
 int main(void)
 {
     _quit = false;
+
+    random_init(time(0));
+
+    /* Setup shared memory and attach: */
+    shared_mem_t *shared_mem;
+    create_shared_object(shared_mem);
+    shared_mem_attach(shared_mem);
+
+    /* Initialise threading: */
+        /* Entrances: */
+    for(unsigned int i = 0; i < num_entrances; ++i)
+    {
+            /* Boom gate: */
+        pthread_mutex_init(&shared_mem->data->entrances[i].bgate.bgate_mutex, NULL);
+        pthread_cond_init(&shared_mem->data->entrances[i].bgate.bgate_update_flag, NULL);
+
+            /* Information sign: */
+        pthread_mutex_init(&shared_mem->data->entrances[i].info_sign.info_sign_mutex, NULL);
+        pthread_cond_init(&shared_mem->data->entrances[i].info_sign.info_sign_update_flag, NULL);
+        
+            /* License plate sensor: */
+        pthread_mutex_init(&shared_mem->data->entrances[i].lplate_sensor.lplate_sensor_mutex, NULL);
+        pthread_cond_init(&shared_mem->data->entrances[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+    }
+        /* Exits: */
+    for(unsigned int i = 0; i < num_entrances; ++i)
+    {
+            /* Boom gate: */
+        pthread_mutex_init(&shared_mem->data->exits[i].bgate.bgate_mutex, NULL);
+        pthread_cond_init(&shared_mem->data->exits[i].bgate.bgate_update_flag, NULL);
+        
+            /* License plate sensor: */
+        pthread_mutex_init(&shared_mem->data->exits[i].lplate_sensor.lplate_sensor_mutex, NULL);
+        pthread_cond_init(&shared_mem->data->exits[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+    }
+        /* Levels: */
+    for(unsigned int i = 0; i < num_entrances; ++i)
+    {   
+            /* License plate sensor: */
+        pthread_mutex_init(&shared_mem->data->levels[i].lplate_sensor.lplate_sensor_mutex, NULL);
+        pthread_cond_init(&shared_mem->data->levels[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+    }
+
+    /* Setup car generator thread: */
+    pthread_t car_gen_thread;
+    pthread_create(&car_gen_thread, NULL, generate_cars_loop, NULL);
+
+    /* End of simulation: */
+        /* Close all threads: */
+    pthread_join(car_gen_thread, NULL);
+    llist_close(car_list);
+
+        /* Destroy shared memory: */
+    destroy_shared_object(shared_mem);
+
 
     // Simulating Car
         // Generate car
