@@ -30,11 +30,13 @@ void llist_close(list_t *self);
 node_t *llist_find(list_t *self, void *data);
 
 /**
- * @brief Put given data into a new node at the head of the linked list.
- * NOTE: requires the given data to already have memory allocated.
+ * @brief Copy given data into a new node at the head of the linked list.
  */
 node_t *llist_push(list_t *self, void *data, size_t data_size);
 
+/**
+ * @brief Create a new node, with data == NULL, at the head of the linked list.
+ */
 node_t *llist_push_empty(list_t *self, size_t data_size);
 
 void llist_delete_node(node_t *node);

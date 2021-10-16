@@ -42,7 +42,7 @@ typedef struct information_sign_t
 {
     pthread_mutex_t info_sign_mutex;
     pthread_cond_t info_sign_update_flag;
-    char display[1];
+    char display;
 } information_sign_t;
 
 typedef struct entrance_t

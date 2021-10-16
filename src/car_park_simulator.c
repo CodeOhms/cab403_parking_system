@@ -126,12 +126,12 @@ int random_int(int range_min, int range_max)
 
 char random_letter(void)
 {
-    return (char)random_int(65, 90);
+    return (char)random_int('A', 'Z');
 }
 
 char random_digit(void)
 {
-    return (char)random_int(48, 57);
+    return (char)random_int('0', '9');
 }
 
 //////////////////// End randomisation functionality.
@@ -161,11 +161,7 @@ typedef struct car_t
 } car_t;
 
 list_t *car_list = NULL;
-
-void *car_sim_loop(void *data)
-{
-    return NULL;
-}
+list_t *entrance_queues[num_entrances];
 
 void generate_license_plate(char *lplate)
 {
@@ -201,37 +197,6 @@ void generate_car(car_t *new_car)
     // new_car->sim_thread = ;
 }
 
-void *generate_cars_loop(void *args)
-{
-    // TODO: have ability to limit number of cars in the simulation from cmd line:
-    size_t cars_to_sim = 100;
-    size_t cars_simulated = 0;
-
-    while(!_quit)
-    {
-        /* Create node in linked list for a new car: (This will allocate memory for new car) */
-        node_t *car_node = llist_push_empty(car_list, sizeof(car_t));
-
-        /* Generate car: */
-        car_t *new_car = (car_t *)car_node->data;
-        generate_car(new_car);
-
-        /* Generate thread to simulate car: */
-        pthread_create(&new_car->sim_thread, NULL, car_sim_loop, new_car);
-
-        /* Sleep for random time: */
-        delay_random_ms(1, 100);
-
-        if(cars_simulated >= cars_to_sim)
-        {
-            _quit = true;
-        }
-        ++cars_simulated;
-    }
-
-    return NULL;
-}
-
 int car_compare_lplate(const void *lplate1, const void *lplate2)
 {
     const char *_lplate1 = (const char *)lplate1;
@@ -256,6 +221,73 @@ void car_data_destroy(void *car_data)
 
     /* Join car thread: */
     pthread_join(car->sim_thread, NULL);
+}
+
+void *car_sim_loop(void *data)
+{
+    node_t *car_node = (node_t *)data;
+
+    /* Put car into queue (FIFO linked list) for a random entrance: */
+        /* This will copy the car node and its data into a new linked list! */
+    node_t *car_entrance_node = llist_push(entrance_queues[0], car_node->data, sizeof(car_t));
+
+    /* Trigger LPR for the entrance: */
+
+    /* Get information from digital sign: */
+    char display;
+
+    /* Remove car from entrance queue: */
+    llist_delete_node(car_entrance_node);
+
+    /* Respond to information received from sign (if digit given continue, else rejected): */
+    if('0' <= display || display <= '9')
+    { /* Car allowed. */
+    /* Wait for boom gate to open: */
+
+    /* Go to assigned level and trigger level LPR: */
+
+    /* Stay in car park for a random period of time (between 100-10,000 ms): */
+    delay_random_ms(100, 10000);
+
+    /* Leave after finish parking, triggering level LPR and exit LPR: */ 
+
+    }
+
+    /* Remove car from simulation: */
+    llist_delete_node(car_node);
+
+    return NULL;
+}
+
+void *generate_cars_loop(void *args)
+{
+    // TODO: have ability to limit number of cars in the simulation from cmd line:
+    size_t cars_to_sim = 100;
+    size_t cars_simulated = 0;
+
+    while(!_quit)
+    {
+        /* Create node in linked list for a new car: (This will allocate memory for new car) */
+        node_t *car_node = llist_push_empty(car_list, sizeof(car_t));
+
+        /* Generate car: */
+        car_t *new_car = (car_t *)car_node->data;
+        generate_car(new_car);
+
+        /* Generate thread to simulate car: */
+        pthread_create(&new_car->sim_thread, NULL, car_sim_loop, car_node);
+
+        /* Sleep for random time: */
+        delay_random_ms(1, 100);
+
+        if(cars_simulated >= cars_to_sim)
+        {
+            _quit = true;
+        }
+        ++cars_simulated;
+    }
+
+    return NULL;
 }
 
 //////////////////// End car functionality and model.

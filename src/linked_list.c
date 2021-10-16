@@ -49,15 +49,10 @@ node_t *llist_find(list_t *self, void *data)
 
 node_t *llist_push(list_t *self, void *data, size_t data_size)
 {
-    node_t *new_node = NULL;
+    node_t *new_node = llist_push_empty(self, data_size);
 
-    if(self->head->next != NULL)
-    { /* Not an empty list */
-        new_node = llist_push_empty(self, data_size);
-
-        /* Copy given data to new node: */
-        memcpy(new_node, data, data_size);
-    }
+    /* Copy given data to new node: */
+    memcpy(new_node, data, data_size);
 
     return new_node;    
 }
@@ -66,8 +61,6 @@ node_t *llist_push_empty(list_t *self, size_t data_size)
 {
     node_t *new_node = NULL;
 
-    // if(self->head->next != NULL)
-    // { /* Not an empty list */
     /* Create new node and allocate memory: */
     new_node = (node_t *)malloc(sizeof(node_t));
 
