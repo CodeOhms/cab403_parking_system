@@ -8,6 +8,7 @@
 #include "linked_list.h"
 
 bool _quit;
+shared_mem_t shared_mem;
 
 //////////////////// Shared memory functionality:
 
@@ -232,6 +233,7 @@ void *car_sim_loop(void *data)
     node_t *car_entrance_node = llist_push(entrance_queues[0], car_node->data, sizeof(car_t));
 
     /* Trigger LPR for the entrance: */
+    pthread_cond_signal(&shared_mem.data->entrances[0].lplate_sensor.lplate_sensor_update_flag);
 
     /* Get information from digital sign: */
     char display;
@@ -299,7 +301,6 @@ int main(void)
     random_init(time(0));
 
     /* Setup shared memory and attach: */
-    shared_mem_t shared_mem;
     create_shared_object(&shared_mem);
     shared_mem_attach(&shared_mem);
 
@@ -350,29 +351,4 @@ int main(void)
 
         /* Destroy shared memory: */
     destroy_shared_object(&shared_mem);
-
-
-    // Simulating Car
-        // Generate car
-
-        // Car Queue up for entrance triggering LPR
-
-        // Get information from digital sign
-
-        // Respond to Information received from sign
-
-        // Generate Random Time to park
-
-        // Leave after finish parking
-
-        // Remove Car from Simulation
-
-    // Simulate Boom Gate
-        // Get signal to open
-
-        // Close Gate after time
-
-    // Simulate Temperature
-        // Generate Temperature
-        
 }
