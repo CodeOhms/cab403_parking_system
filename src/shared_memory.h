@@ -8,7 +8,7 @@
 
 // #define LICENSE_PLATE_LENGTH 6
 // const int license_plate_lenth = 6;
-#define license_plate_lenth 6
+#define license_plate_lenth 7
 // const int num_entrances = 5;
 // const int num_exits = 5;
 // const int num_levels = 5;

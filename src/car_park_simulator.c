@@ -131,14 +131,14 @@ char random_letter(void)
 
 char random_digit(void)
 {
-    return (char)random_int(30, 39);
+    return (char)random_int(48, 57);
 }
 
 //////////////////// End randomisation functionality.
 
 //////////////////// Delay functionality:
 
-const unsigned int time_scale;
+const unsigned int time_scale = 1;
 
 void delay_random_ms(unsigned int range_min, unsigned int range_max)
 {
@@ -155,7 +155,7 @@ void delay_random_ms(unsigned int range_min, unsigned int range_max)
 
 typedef struct car_t
 {
-    char license_plate[6];
+    char license_plate[license_plate_lenth];
     uint8_t level_assigned;
     pthread_t sim_thread;
 } car_t;
@@ -167,7 +167,7 @@ void *car_sim_loop(void *data)
     return NULL;
 }
 
-void generate_license_plate(char lplate[license_plate_lenth])
+void generate_license_plate(char *lplate)
 {
     /* Generate numbers: */
     for(uint8_t i = 0; i < license_plate_lenth/2; ++i)
@@ -176,10 +176,13 @@ void generate_license_plate(char lplate[license_plate_lenth])
     }
 
     /* Generate letters (Capitalised ASCII): */
-    for(uint8_t i = license_plate_lenth/2; i < license_plate_lenth; ++i)
+    for(uint8_t i = license_plate_lenth/2; i < license_plate_lenth -1; ++i)
     {
         lplate[i] = random_letter();
     }
+
+    /* Null termination character: */
+    lplate[license_plate_lenth - 1] = '\0';
 }
 
 void generate_car(car_t *new_car)
