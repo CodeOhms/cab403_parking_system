@@ -1,15 +1,15 @@
 #include "linked_list.h"
 
-void llist_init(list_t *self, int (*compare_func)(const void *data1, const void *data2),
+void llist_init(list_t **self, int (*compare_func)(const void *data1, const void *data2),
     void (*destructor)(void *))
 {
     /* Allocate memory for list management structure: */
-    self = (list_t *)malloc(sizeof(list_t));
+    (*self) = (list_t *)malloc(sizeof(list_t));
 
-    self->head = NULL;
-    self->tail = NULL;
-    self->compare = compare_func;
-    self->destructor = destructor;
+    (*self)->head = NULL;
+    (*self)->tail = NULL;
+    (*self)->compare = compare_func;
+    (*self)->destructor = destructor;
 }
 
 void llist_close(list_t *self)
@@ -66,25 +66,28 @@ node_t *llist_push_empty(list_t *self, size_t data_size)
 {
     node_t *new_node = NULL;
 
-    if(self->head->next != NULL)
-    { /* Not an empty list */
-        /* Create new node and allocate memory: */
-        new_node = (node_t *)malloc(sizeof(node_t));
+    // if(self->head->next != NULL)
+    // { /* Not an empty list */
+    /* Create new node and allocate memory: */
+    new_node = (node_t *)malloc(sizeof(node_t));
 
-        /* Allocate memory for data: */
-        void *data = malloc(data_size);
+    /* Allocate memory for data: */
+    void *data = malloc(data_size);
 
-        /* 1st node previous pointer connect to new node: */
-        self->head->next->previous = new_node;
+    new_node->data = data;
 
-        /* New node point to 1st node: */
-        new_node->next = self->head->next;
+    /* Replace head of the list with new node: */
+    node_t *old_head = self->head;
+    self->head = new_node;
+    self->head->previous = NULL;
 
-        /* New node previous pointer connect to head: */
-        new_node->previous = self->head;
+    /* New head point to old head: */
+    self->head->next = old_head;
 
-        /* Set head to be (point) to new node: */
-        self->head->next = new_node;
+    if(old_head != NULL)
+    { /* The list was an empty list: */
+        /* Old head previous pointer connect to new head: */
+        old_head->previous = self->head;
     }
 
     return new_node;

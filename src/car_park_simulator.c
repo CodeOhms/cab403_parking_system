@@ -162,7 +162,12 @@ typedef struct car_t
 
 list_t *car_list = NULL;
 
-void generate_license_plate(char *lplate[license_plate_lenth])
+void *car_sim_loop(void *data)
+{
+    return NULL;
+}
+
+void generate_license_plate(char lplate[license_plate_lenth])
 {
     /* Generate numbers: */
     for(uint8_t i = 0; i < license_plate_lenth/2; ++i)
@@ -181,7 +186,7 @@ void generate_car(car_t *new_car)
 {
     /* Generate license plate: */
         /* Ensure car doesn't currently exist (no license plate duplicates): */
-    char *lplate[license_plate_lenth] = &new_car->license_plate;
+    char *lplate = new_car->license_plate;
     generate_license_plate(lplate);
     while(llist_find(car_list, lplate) != NULL)
     {
@@ -193,8 +198,12 @@ void generate_car(car_t *new_car)
     // new_car->sim_thread = ;
 }
 
-void generate_cars_loop()
+void *generate_cars_loop(void *args)
 {
+    // TODO: have ability to limit number of cars in the simulation from cmd line:
+    size_t cars_to_sim = 100;
+    size_t cars_simulated = 0;
+
     while(!_quit)
     {
         /* Create node in linked list for a new car: (This will allocate memory for new car) */
@@ -209,12 +218,23 @@ void generate_cars_loop()
 
         /* Sleep for random time: */
         delay_random_ms(1, 100);
+
+        if(cars_simulated >= cars_to_sim)
+        {
+            _quit = true;
+        }
+        ++cars_simulated;
     }
+
+    return NULL;
 }
 
-int car_compare_lplate(char *lplate1[license_plate_lenth], char *lplate2[license_plate_lenth])
+int car_compare_lplate(const void *lplate1, const void *lplate2)
 {
-    if(strcmp(lplate1, lplate2) == 0)
+    const char *_lplate1 = (const char *)lplate1;
+    const char *_lplate2 = (const char *)lplate2;
+
+    if(strcmp(_lplate1, _lplate2) == 0)
     { /* Exact match. */
         return 0;
     }
@@ -232,7 +252,7 @@ void car_data_destroy(void *car_data)
     car_t *car = (car_t *)car_data;
 
     /* Join car thread: */
-    pthread_join(&car->sim_thread, NULL);
+    pthread_join(car->sim_thread, NULL);
 }
 
 //////////////////// End car functionality and model.
@@ -244,46 +264,47 @@ int main(void)
     random_init(time(0));
 
     /* Setup shared memory and attach: */
-    shared_mem_t *shared_mem;
-    create_shared_object(shared_mem);
-    shared_mem_attach(shared_mem);
+    shared_mem_t shared_mem;
+    create_shared_object(&shared_mem);
+    shared_mem_attach(&shared_mem);
 
     /* Initialise threading: */
         /* Entrances: */
     for(unsigned int i = 0; i < num_entrances; ++i)
     {
             /* Boom gate: */
-        pthread_mutex_init(&shared_mem->data->entrances[i].bgate.bgate_mutex, NULL);
-        pthread_cond_init(&shared_mem->data->entrances[i].bgate.bgate_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->entrances[i].bgate.bgate_mutex, NULL);
+        pthread_cond_init(&shared_mem.data->entrances[i].bgate.bgate_update_flag, NULL);
 
             /* Information sign: */
-        pthread_mutex_init(&shared_mem->data->entrances[i].info_sign.info_sign_mutex, NULL);
-        pthread_cond_init(&shared_mem->data->entrances[i].info_sign.info_sign_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->entrances[i].info_sign.info_sign_mutex, NULL);
+        pthread_cond_init(&shared_mem.data->entrances[i].info_sign.info_sign_update_flag, NULL);
         
             /* License plate sensor: */
-        pthread_mutex_init(&shared_mem->data->entrances[i].lplate_sensor.lplate_sensor_mutex, NULL);
-        pthread_cond_init(&shared_mem->data->entrances[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->entrances[i].lplate_sensor.lplate_sensor_mutex, NULL);
+        pthread_cond_init(&shared_mem.data->entrances[i].lplate_sensor.lplate_sensor_update_flag, NULL);
     }
         /* Exits: */
     for(unsigned int i = 0; i < num_entrances; ++i)
     {
             /* Boom gate: */
-        pthread_mutex_init(&shared_mem->data->exits[i].bgate.bgate_mutex, NULL);
-        pthread_cond_init(&shared_mem->data->exits[i].bgate.bgate_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->exits[i].bgate.bgate_mutex, NULL);
+        pthread_cond_init(&shared_mem.data->exits[i].bgate.bgate_update_flag, NULL);
         
             /* License plate sensor: */
-        pthread_mutex_init(&shared_mem->data->exits[i].lplate_sensor.lplate_sensor_mutex, NULL);
-        pthread_cond_init(&shared_mem->data->exits[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->exits[i].lplate_sensor.lplate_sensor_mutex, NULL);
+        pthread_cond_init(&shared_mem.data->exits[i].lplate_sensor.lplate_sensor_update_flag, NULL);
     }
         /* Levels: */
     for(unsigned int i = 0; i < num_entrances; ++i)
     {   
             /* License plate sensor: */
-        pthread_mutex_init(&shared_mem->data->levels[i].lplate_sensor.lplate_sensor_mutex, NULL);
-        pthread_cond_init(&shared_mem->data->levels[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_mutex, NULL);
+        pthread_cond_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_update_flag, NULL);
     }
 
     /* Setup car generator thread: */
+    llist_init(&car_list, car_compare_lplate, car_data_destroy);
     pthread_t car_gen_thread;
     pthread_create(&car_gen_thread, NULL, generate_cars_loop, NULL);
 
@@ -293,7 +314,7 @@ int main(void)
     llist_close(car_list);
 
         /* Destroy shared memory: */
-    destroy_shared_object(shared_mem);
+    destroy_shared_object(&shared_mem);
 
 
     // Simulating Car

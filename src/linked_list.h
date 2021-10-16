@@ -1,8 +1,11 @@
 #ifndef  LINKED_LIST_H
 #define  LINKED_LIST_H
 
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+
+typedef struct node_t node_t;
 
 typedef struct node_t
 {
@@ -19,7 +22,7 @@ typedef struct list_t
     void (*destructor)(void *node);
 } list_t;
 
-void llist_init(list_t *self, int (*compare_func)(const void *data1, const void *data2),
+void llist_init(list_t **self, int (*compare_func)(const void *data1, const void *data2),
     void (*destructor)(void *));
 
 void llist_close(list_t *self);

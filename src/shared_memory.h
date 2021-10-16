@@ -7,10 +7,14 @@
 #include <fcntl.h>
 
 // #define LICENSE_PLATE_LENGTH 6
-const int license_plate_lenth = 6;
-const int num_entrances = 5;
-const int num_exits = 5;
-const int num_levels = 5;
+// const int license_plate_lenth = 6;
+#define license_plate_lenth 6
+// const int num_entrances = 5;
+// const int num_exits = 5;
+// const int num_levels = 5;
+#define num_entrances 5
+#define num_exits 5
+#define num_levels 5
 
 typedef struct license_plate_sensor_t
 {
@@ -78,8 +82,10 @@ typedef struct shared_mem_t
     shared_data_t *data;
 } shared_mem_t;
 
-const char* shm_name = "PARKING";
-const size_t shm_size = sizeof(shared_data_t);
+// const char* shm_name = "PARKING";
+// const size_t shm_size = sizeof(shared_data_t);
+#define shm_name "PARKING"
+#define shm_size sizeof(shared_data_t)
 
 /**
  * @brief Attach to shared memory. If it already exists from a previous

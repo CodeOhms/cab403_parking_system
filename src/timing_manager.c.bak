@@ -1,5 +1,5 @@
 #include <stdbool.h>
-#include "include/timing_manager.h"
+#include "timing_manager.h"
 
 const unsigned int time_quantum_ms = 1; /* Smallest unit of time delay, in milliseconds. */
 bool _quit = false;
