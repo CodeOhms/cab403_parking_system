@@ -162,6 +162,7 @@ typedef struct car_t
 } car_t;
 
 list_t *car_list = NULL;
+pthread_mutex_t car_list_mutex;
 
 void generate_license_plate(char *lplate)
 {
@@ -264,7 +265,9 @@ void *car_sim_loop(void *args)
     }
 
     /* Remove car from simulation: */
+    pthread_mutex_lock(&car_list_mutex);
     llist_delete_node(car_node);
+    pthread_mutex_unlock(&car_list_mutex);
 
     return NULL;
 }
@@ -277,12 +280,16 @@ void *generate_cars_loop(void *args)
 
     while(!_quit)
     {
+        pthread_mutex_lock(&car_list_mutex);
+
         /* Create node in linked list for a new car: (This will allocate memory for new car) */
         node_t *car_node = llist_push_empty(car_list, sizeof(car_t));
 
         /* Generate car: */
         car_t *new_car = (car_t *)car_node->data;
         generate_car(new_car);
+
+        pthread_mutex_unlock(&car_list_mutex);
 
         /* Generate thread to simulate car: */
         pthread_create(&new_car->sim_thread, NULL, car_sim_loop, car_node);
@@ -352,6 +359,7 @@ int main(void)
     }
 
     /* Setup car generator thread: */
+    pthread_mutex_init(&car_list_mutex, NULL);
     llist_init(&car_list, car_compare_lplate, car_data_destroy);
     pthread_t car_gen_thread;
     pthread_create(&car_gen_thread, NULL, generate_cars_loop, NULL);
