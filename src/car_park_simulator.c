@@ -162,7 +162,6 @@ typedef struct car_t
 } car_t;
 
 list_t *car_list = NULL;
-list_t *entrance_queues[num_entrances];
 
 void generate_license_plate(char *lplate)
 {
@@ -224,27 +223,32 @@ void car_data_destroy(void *car_data)
     pthread_join(car->sim_thread, NULL);
 }
 
-void *car_sim_loop(void *data)
+void *car_sim_loop(void *args)
 {
-    node_t *car_node = (node_t *)data;
+    node_t *car_node = (node_t *)args;
 
-    /* Put car into queue (FIFO linked list) for a random entrance: */
-        /* This will copy the car node and its data into a new linked list! */
-    node_t *car_entrance_node = llist_push(entrance_queues[0], car_node->data, sizeof(car_t));
+    /* Aquire mutex for the entrance LPR: */
 
-    /* Trigger LPR for the entrance: */
+    /* Wait a bit before triggering the LPR: */
+
+    /* Update the LPR license plate field, then trigger LPR cond. var. for the entrance: */
     pthread_cond_signal(&shared_mem.data->entrances[0].lplate_sensor.lplate_sensor_update_flag);
 
     /* Get information from digital sign: */
     char display;
+        /* Aquire mutex for the sign: */
 
-    /* Remove car from entrance queue: */
-    llist_delete_node(car_entrance_node);
+        /* Wait for sign to update: */
+
+        /* Unlock mutex for the sign: */
 
     /* Respond to information received from sign (if digit given continue, else rejected): */
     if('0' <= display || display <= '9')
     { /* Car allowed. */
     /* Wait for boom gate to open: */
+
+    /* Continue into the car park: */
+        /* Car finished with the LPR and ready to enter, unlock mutex: */
 
     /* Go to assigned level and trigger level LPR: */
 
@@ -253,6 +257,10 @@ void *car_sim_loop(void *data)
 
     /* Leave after finish parking, triggering level LPR and exit LPR: */ 
 
+    }
+    else
+    { /* Car rejected. */
+        /* Car finsihed with the LPR and ready to leave, unlock mutex: */
     }
 
     /* Remove car from simulation: */
@@ -305,38 +313,42 @@ int main(void)
     shared_mem_attach(&shared_mem);
 
     /* Initialise threading: */
+    pthread_mutexattr_t mutex_attr;
+    pthread_condattr_t cond_attr;
+    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
         /* Entrances: */
     for(unsigned int i = 0; i < num_entrances; ++i)
     {
             /* Boom gate: */
-        pthread_mutex_init(&shared_mem.data->entrances[i].bgate.bgate_mutex, NULL);
-        pthread_cond_init(&shared_mem.data->entrances[i].bgate.bgate_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->entrances[i].bgate.bgate_mutex, &mutex_attr);
+        pthread_cond_init(&shared_mem.data->entrances[i].bgate.bgate_update_flag, &cond_attr);
 
             /* Information sign: */
-        pthread_mutex_init(&shared_mem.data->entrances[i].info_sign.info_sign_mutex, NULL);
-        pthread_cond_init(&shared_mem.data->entrances[i].info_sign.info_sign_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->entrances[i].info_sign.info_sign_mutex, &mutex_attr);
+        pthread_cond_init(&shared_mem.data->entrances[i].info_sign.info_sign_update_flag, &cond_attr);
         
             /* License plate sensor: */
-        pthread_mutex_init(&shared_mem.data->entrances[i].lplate_sensor.lplate_sensor_mutex, NULL);
-        pthread_cond_init(&shared_mem.data->entrances[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->entrances[i].lplate_sensor.lplate_sensor_mutex, &mutex_attr);
+        pthread_cond_init(&shared_mem.data->entrances[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
     }
         /* Exits: */
     for(unsigned int i = 0; i < num_entrances; ++i)
     {
             /* Boom gate: */
-        pthread_mutex_init(&shared_mem.data->exits[i].bgate.bgate_mutex, NULL);
-        pthread_cond_init(&shared_mem.data->exits[i].bgate.bgate_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->exits[i].bgate.bgate_mutex, &mutex_attr);
+        pthread_cond_init(&shared_mem.data->exits[i].bgate.bgate_update_flag, &cond_attr);
         
             /* License plate sensor: */
-        pthread_mutex_init(&shared_mem.data->exits[i].lplate_sensor.lplate_sensor_mutex, NULL);
-        pthread_cond_init(&shared_mem.data->exits[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->exits[i].lplate_sensor.lplate_sensor_mutex, &mutex_attr);
+        pthread_cond_init(&shared_mem.data->exits[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
     }
         /* Levels: */
     for(unsigned int i = 0; i < num_entrances; ++i)
     {   
             /* License plate sensor: */
-        pthread_mutex_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_mutex, NULL);
-        pthread_cond_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_update_flag, NULL);
+        pthread_mutex_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_mutex, &mutex_attr);
+        pthread_cond_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
     }
 
     /* Setup car generator thread: */
@@ -348,6 +360,10 @@ int main(void)
         /* Close all threads: */
     pthread_join(car_gen_thread, NULL);
     llist_close(car_list);
+
+        /* Destroy mutex and condition attribute variables: */
+    pthread_mutexattr_destroy(&mutex_attr);
+    pthread_condattr_destroy(&cond_attr);
 
         /* Destroy shared memory: */
     destroy_shared_object(&shared_mem);
