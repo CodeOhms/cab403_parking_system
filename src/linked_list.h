@@ -29,6 +29,10 @@ void llist_close(list_t *self);
 
 node_t *llist_find(list_t *self, void *data);
 
+node_t *llist_append(list_t *self, void *data, size_t data_size);
+
+node_t *llist_append_empty(list_t *self, size_t data_size);
+
 /**
  * @brief Copy given data into a new node at the head of the linked list.
  */
@@ -39,6 +43,14 @@ node_t *llist_push(list_t *self, void *data, size_t data_size);
  */
 node_t *llist_push_empty(list_t *self, size_t data_size);
 
-void llist_delete_node(node_t *node);
+/**
+ * @brief Pop the head off the linked list.
+ * 
+ * @returns Returns the first element of the linked list.
+ * Also, disconnects this first element. Returns NULL if an empty list.
+ */
+node_t *llist_pop(list_t *self);
+
+void llist_delete_node(list_t *self, node_t *node);
 
 #endif //LINKED_LIST_H

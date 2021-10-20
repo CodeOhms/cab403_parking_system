@@ -6,9 +6,11 @@
 #include <stdlib.h>
 #include "shared_memory.h"
 #include "linked_list.h"
+#include "thread_pool.h"
 
 bool _quit;
 shared_mem_t shared_mem;
+thread_pool_t car_thread_pool;
 
 //////////////////// Shared memory functionality:
 
@@ -186,12 +188,13 @@ void generate_car(car_t *new_car)
 {
     /* Generate license plate: */
         /* Ensure car doesn't currently exist (no license plate duplicates): */
-    char *lplate = new_car->license_plate;
+    char lplate[license_plate_lenth];
     generate_license_plate(lplate);
     while(llist_find(car_list, lplate) != NULL)
     {
         generate_license_plate(lplate);
     }
+    memcpy(new_car->license_plate, lplate, license_plate_lenth);
     
     /* Initialise other contents to defaults: */
     new_car->level_assigned = 0;
@@ -216,13 +219,13 @@ int car_compare_lplate(const void *lplate1, const void *lplate2)
     return -1;
 }
 
-void car_data_destroy(void *car_data)
-{
-    car_t *car = (car_t *)car_data;
+// void car_data_destroy(void *car_data)
+// {
+//     car_t *car = (car_t *)car_data;
 
-    /* Join car thread: */
-    pthread_join(car->sim_thread, NULL);
-}
+//     /* Join car thread: */
+//     pthread_join(car->sim_thread, NULL);
+// }
 
 void *car_sim_loop(void *args)
 {
@@ -266,7 +269,7 @@ void *car_sim_loop(void *args)
 
     /* Remove car from simulation: */
     pthread_mutex_lock(&car_list_mutex);
-    llist_delete_node(car_node);
+    llist_delete_node(car_list, car_node);
     pthread_mutex_unlock(&car_list_mutex);
 
     return NULL;
@@ -275,7 +278,7 @@ void *car_sim_loop(void *args)
 void *generate_cars_loop(void *args)
 {
     // TODO: have ability to limit number of cars in the simulation from cmd line:
-    size_t cars_to_sim = 100;
+    size_t cars_to_sim = 10;
     size_t cars_simulated = 0;
 
     while(!_quit)
@@ -291,8 +294,8 @@ void *generate_cars_loop(void *args)
 
         pthread_mutex_unlock(&car_list_mutex);
 
-        /* Generate thread to simulate car: */
-        pthread_create(&new_car->sim_thread, NULL, car_sim_loop, car_node);
+        /* Simulate car via thread pool: */
+        thread_pool_add_request(&car_thread_pool, car_sim_loop, car_node);
 
         /* Sleep for random time: */
         delay_random_ms(1, 100);
@@ -303,6 +306,9 @@ void *generate_cars_loop(void *args)
         }
         ++cars_simulated;
     }
+
+    /* Ensure all car threads have been closed (this will pthread join each): */
+    llist_close(car_list);
 
     return NULL;
 }
@@ -315,11 +321,11 @@ int main(void)
 
     random_init(time(0));
 
-    /* Setup shared memory and attach: */
+    /* Initialise shared memory: */
+        /* Create shared memory object and attach: */
     create_shared_object(&shared_mem);
     shared_mem_attach(&shared_mem);
 
-    /* Initialise threading: */
     pthread_mutexattr_t mutex_attr;
     pthread_condattr_t cond_attr;
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
@@ -358,16 +364,18 @@ int main(void)
         pthread_cond_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
     }
 
-    /* Setup car generator thread: */
+    /* Initialise threading: */
+        /* Setup thread pool for cars: */
+    thread_pool_init(&car_thread_pool);
+        /* Setup car generator thread: */
     pthread_mutex_init(&car_list_mutex, NULL);
-    llist_init(&car_list, car_compare_lplate, car_data_destroy);
+    llist_init(&car_list, car_compare_lplate, NULL);
     pthread_t car_gen_thread;
     pthread_create(&car_gen_thread, NULL, generate_cars_loop, NULL);
 
     /* End of simulation: */
         /* Close all threads: */
     pthread_join(car_gen_thread, NULL);
-    llist_close(car_list);
 
         /* Destroy mutex and condition attribute variables: */
     pthread_mutexattr_destroy(&mutex_attr);

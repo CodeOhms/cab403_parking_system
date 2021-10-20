@@ -1,0 +1,21 @@
+{
+	"folders": [
+		{
+			"name": "Root",
+			"path": "."
+		},
+		{
+			"name": "Source code",
+			"path": "src"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"timing_manager.h": "c",
+			"tuple": "c",
+			"array": "c",
+			"string": "c",
+			"string_view": "c"
+		}
+	}
+}
