@@ -9,10 +9,14 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <string.h>
+#include "shared_memory.h"
+#include "linked_list.h"
 
 // Create variable
 char license_plate[1000][7];
 int license_plate_length = 0;
+
+shared_mem_t shared_mem;
 
 // Hash Table
 typedef struct item item_t;
@@ -168,7 +172,7 @@ void lp_list ( htab_t *h ) {
     FILE *plate = fopen("plates.txt", "r");
 
     const unsigned MAX_LENGTH = 256;
-    char buffer[6];
+    char buffer[7];
 
     // Assign Characters to Hash Table
     while (fgets(buffer, MAX_LENGTH, plate)) {
@@ -216,6 +220,23 @@ int lp_scan(char license[6]){
     return 0;
 }
 
+// Function for writing to txt file
+void write_bill ( char license_plate[6], float bill){
+
+    // File Pointer
+    FILE *f = fopen("billing.txt", "a");
+    if (f == NULL)
+    {
+        printf("unable to open billing.txt\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* print some text */
+    fprintf(f, "%s $%.2f\n", license_plate, bill);
+
+    fclose(f);
+}
+
 int main()
 {
     // Initialise
@@ -226,15 +247,21 @@ int main()
         // Create License Plate Array
     lp_list( &h );
 
+        /* Setup shared memory and attach: */
+    shared_mem_attach(&shared_mem);
+
     // Car Status
         // Monitor Status of LPR Sensor and Keep track of each char
-
+    printf(shared_mem.data->entrances[0].lplate_sensor.license_plate)
         // Ensure that there is room in car park (Make sure there is less than 20 cars)
 
         // Keep Track of car parking
 
         // Update billing.txt when car leaves
 
+    write_bill("ABC123", 12.3);
+    write_bill("WOW069", 50.23);
+    write_bill("TEST37", 20.85);
     // Boom Gates
         // Tell Boom gate to open
 
