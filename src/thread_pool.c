@@ -87,7 +87,11 @@ void thread_pool_add_request(thread_pool_t *self, void *(*func)(void *), void *a
 request_t *get_request(thread_pool_t *self)
 {
     node_t *request_node = llist_pop(&self->request_list);
-    request_t *a_request = (request_t *)request_node->data;
+    request_t *a_request = NULL;
+    if(request_node != NULL)
+    { /* Empty list */
+        a_request = (request_t *)request_node->data;
+    }
 
     return a_request;
 }

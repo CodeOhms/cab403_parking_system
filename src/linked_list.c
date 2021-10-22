@@ -55,7 +55,7 @@ node_t *llist_append(list_t *self, void *data, size_t data_size)
     node_t *new_node = llist_append_empty(self, data_size);
 
     /* Copy given data to new node: */
-    memcpy(new_node, data, data_size);
+    memcpy(new_node->data, data, data_size);
 
     return new_node;
 }
@@ -64,22 +64,19 @@ node_t *llist_append_empty(list_t *self, size_t data_size)
 {
     node_t *new_node = NULL;
 
-    /* Create new node and allocate memory: */
-    new_node = (node_t *)malloc(sizeof(node_t));
-
-    /* Allocate memory for data: */
-    void *data = malloc(data_size);
-
-    new_node->data = data;
-    new_node->next = NULL;
-
     /* If an empty list, appending has the same affect as pushing: */
     if(self->head == NULL && self->tail == NULL)
     {
-        llist_push_empty(self, data_size);
+        new_node = llist_push_empty(self, data_size);
     }
     else
     {
+        /* Allocate memory for the new node: */
+        new_node = (node_t *)malloc(sizeof(node_t));
+
+        /* Allocate memory for data: */
+        new_node->data = malloc(data_size);
+
         /* Replace tail of the list with the new node: */
         node_t *old_tail = self->tail;
         self->tail = new_node;
@@ -91,6 +88,9 @@ node_t *llist_append_empty(list_t *self, size_t data_size)
         new_node->previous = old_tail;
     }
 
+    /* New node is new tail, so it's next pointer goes nowhere: */
+    new_node->next = NULL;
+
     return new_node;
 }
 
@@ -99,7 +99,7 @@ node_t *llist_push(list_t *self, void *data, size_t data_size)
     node_t *new_node = llist_push_empty(self, data_size);
 
     /* Copy given data to new node: */
-    memcpy(new_node, data, data_size);
+    memcpy(new_node->data, data, data_size);
 
     return new_node;
 }
@@ -124,20 +124,20 @@ node_t *llist_push_empty(list_t *self, size_t data_size)
     /* New head point to old head: */
     self->head->next = old_head;
 
+    /* Old head previous pointer connect to new head: */
     if(old_head != NULL)
-    { /* The list was an empty list: */
-        /* Old head previous pointer connect to new head: */
+    { /* If it was an emtpy list, old head would be NULL. */
         old_head->previous = self->head;
     }
 
     /* Special cases to deal with tail of list: */
-        /* Empty list: */
-    if(self->head == NULL && self->tail == NULL)
+        /* Was an empty list: */
+    if(old_head == NULL)
     {
         self->tail = self->head;
     }
-        /* One item list: */
-    if(self->head == self->tail)
+        /* Was a one item list: */
+    else if(self->head == self->tail)
     {
         /* Old head becomes the tail: */
         self->tail = old_head;
