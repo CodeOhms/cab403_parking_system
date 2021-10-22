@@ -252,7 +252,7 @@ int main()
 
     // Car Status
         // Monitor Status of LPR Sensor and Keep track of each char
-    printf(shared_mem.data->entrances[0].lplate_sensor.license_plate)
+    printf(shared_mem.data->entrances[0].lplate_sensor.license_plate);
         // Ensure that there is room in car park (Make sure there is less than 20 cars)
 
         // Keep Track of car parking

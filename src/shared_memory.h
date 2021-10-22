@@ -6,21 +6,16 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 
-// #define LICENSE_PLATE_LENGTH 6
-// const int license_plate_lenth = 6;
-#define license_plate_lenth 7
-// const int num_entrances = 5;
-// const int num_exits = 5;
-// const int num_levels = 5;
-#define num_entrances 5
-#define num_exits 5
-#define num_levels 5
+#define LICENSE_PLATE_LENGTH 6
+#define NUM_ENTRANCES 5
+#define NUM_EXITS 5
+#define NUM_LEVELS 5
 
 typedef struct license_plate_sensor_t
 {
     pthread_mutex_t lplate_sensor_mutex;
     pthread_cond_t lplate_sensor_update_flag;
-    char license_plate[license_plate_lenth];
+    char license_plate[LICENSE_PLATE_LENGTH];
 } license_plate_sensor_t;
 
 typedef enum boom_gate_state_t
@@ -67,9 +62,9 @@ typedef struct level_t
 
 typedef struct shared_data_t
 {
-    entrance_t entrances[num_entrances];
-    exit_t exits[num_exits];
-    level_t levels[num_levels];
+    entrance_t entrances[NUM_ENTRANCES];
+    exit_t exits[NUM_EXITS];
+    level_t levels[NUM_LEVELS];
 } shared_data_t;
 
 /* Structure to manage the shared memory data */

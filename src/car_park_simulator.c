@@ -158,7 +158,7 @@ void delay_random_ms(unsigned int range_min, unsigned int range_max)
 
 typedef struct car_t
 {
-    char license_plate[license_plate_lenth];
+    char license_plate[LICENSE_PLATE_LENGTH];
     uint8_t level_assigned;
     pthread_t sim_thread;
 } car_t;
@@ -169,51 +169,48 @@ pthread_mutex_t car_list_mutex;
 void generate_license_plate(char *lplate)
 {
     /* Generate numbers: */
-    for(uint8_t i = 0; i < license_plate_lenth/2; ++i)
+    for(uint8_t i = 0; i < LICENSE_PLATE_LENGTH/2; ++i)
     {
         lplate[i] = random_digit();
     }
 
     /* Generate letters (Capitalised ASCII): */
-    for(uint8_t i = license_plate_lenth/2; i < license_plate_lenth -1; ++i)
+    for(uint8_t i = LICENSE_PLATE_LENGTH/2; i < LICENSE_PLATE_LENGTH; ++i)
     {
         lplate[i] = random_letter();
     }
-
-    /* Null termination character: */
-    lplate[license_plate_lenth - 1] = '\0';
 }
 
 void generate_car(car_t *new_car)
 {
     /* Generate license plate: */
         /* Ensure car doesn't currently exist (no license plate duplicates): */
-    char lplate[license_plate_lenth];
+    char lplate[LICENSE_PLATE_LENGTH];
     generate_license_plate(lplate);
     while(llist_find(car_list, lplate) != NULL)
     {
         generate_license_plate(lplate);
     }
-    memcpy(new_car->license_plate, lplate, license_plate_lenth);
-    
-    /* Initialise other contents to defaults: */
-    new_car->level_assigned = 0;
-    // new_car->sim_thread = ;
+    memcpy(new_car->license_plate, lplate, LICENSE_PLATE_LENGTH);
 }
 
-int car_compare_lplate(const void *lplate1, const void *lplate2)
+int car_compare_lplate(const void *lplate1, const void *car)
 {
-    const char *_lplate1 = (const char *)lplate1;
-    const char *_lplate2 = (const char *)lplate2;
-
-    if(strcmp(_lplate1, _lplate2) == 0)
-    { /* Exact match. */
-        return 0;
-    }
+    car_t *_car = (car_t *)car;
+    char *lplate2 = (char *)_car->license_plate;
+    /* When a car is generated, its node will have a license plate of null term chars so ignore it: */
+    if(lplate2[0] != 0)
+    {
+        // if(strcmp(_lplate1, _lplate2) == 0)
+        if(memcmp(lplate1, lplate2, LICENSE_PLATE_LENGTH) == 0)
+        { /* Exact match. */
+            return 0;
+        }
     // else if()
     // { /* Before alphabetically and numerically: */
     //     /* TODO: Implement functionality to compare license plates in ascending order! */
     // }
+    }
 
     /* Once compare function complete, delete below return statement! */
     return -1;
@@ -285,12 +282,13 @@ void *generate_cars_loop(void *args)
     {
         pthread_mutex_lock(&car_list_mutex);
 
-        /* Create node in linked list for a new car: (This will allocate memory for new car) */
+        // /* Create node in linked list for a new car: (This will allocate memory for new car) */
         node_t *car_node = llist_push_empty(car_list, sizeof(car_t));
 
         /* Generate car: */
         car_t *new_car = (car_t *)car_node->data;
         generate_car(new_car);
+        car_node = llist_push(car_list, new_car, sizeof(car_t));
 
         pthread_mutex_unlock(&car_list_mutex);
 
@@ -307,7 +305,7 @@ void *generate_cars_loop(void *args)
         ++cars_simulated;
     }
 
-    /* Ensure all car threads have been closed (this will pthread join each): */
+    /* Ensure all car threads have been closed: */
     llist_close(car_list);
 
     return NULL;
@@ -331,7 +329,7 @@ int main(void)
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
         /* Entrances: */
-    for(unsigned int i = 0; i < num_entrances; ++i)
+    for(unsigned int i = 0; i < NUM_ENTRANCES; ++i)
     {
             /* Boom gate: */
         pthread_mutex_init(&shared_mem.data->entrances[i].bgate.bgate_mutex, &mutex_attr);
@@ -346,7 +344,7 @@ int main(void)
         pthread_cond_init(&shared_mem.data->entrances[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
     }
         /* Exits: */
-    for(unsigned int i = 0; i < num_entrances; ++i)
+    for(unsigned int i = 0; i < NUM_ENTRANCES; ++i)
     {
             /* Boom gate: */
         pthread_mutex_init(&shared_mem.data->exits[i].bgate.bgate_mutex, &mutex_attr);
@@ -357,7 +355,7 @@ int main(void)
         pthread_cond_init(&shared_mem.data->exits[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
     }
         /* Levels: */
-    for(unsigned int i = 0; i < num_entrances; ++i)
+    for(unsigned int i = 0; i < NUM_ENTRANCES; ++i)
     {   
             /* License plate sensor: */
         pthread_mutex_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_mutex, &mutex_attr);

@@ -33,13 +33,13 @@ void llist_close(list_t *self)
     }
 }
 
-node_t *llist_find(list_t *self, void *data)
+node_t *llist_find(list_t *self, void *cmp_to)
 {
     for(node_t* current = self->head; current != NULL; current = current->next)
     {
         if(current->data != NULL)
         { /* Need to check this as this impl allows a node with data == NULL. */
-            if(self->compare(data, current->data) == 0)
+            if(self->compare(cmp_to, current->data) == 0)
             {
                 return current;
             }
