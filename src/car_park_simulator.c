@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include "utils.h"
 #include "shared_memory.h"
 #include "linked_list.h"
 #include "thread_pool.h"
@@ -11,6 +12,8 @@
 bool _quit;
 shared_mem_t shared_mem;
 thread_pool_t car_thread_pool;
+pthread_mutex_t random_gen_mutex;
+unsigned int time_scale = 1;
 
 //////////////////// Shared memory functionality:
 
@@ -108,52 +111,6 @@ void destroy_shared_object( shared_mem_t* shm ) {
 
 //////////////////// End shared memory functionality.
 
-//////////////////// Randomisation functionality:
-
-pthread_mutex_t random_gen_mutex;
-
-void random_init(unsigned int seed)
-{
-    srand(seed);
-}
-
-int random_int(int range_min, int range_max)
-{
-    pthread_mutex_lock(&random_gen_mutex);
-
-    int n = rand() % (range_max - range_min +1) + range_min;
-
-    pthread_mutex_unlock(&random_gen_mutex);
-    return n;
-}
-
-char random_letter(void)
-{
-    return (char)random_int('A', 'Z');
-}
-
-char random_digit(void)
-{
-    return (char)random_int('0', '9');
-}
-
-//////////////////// End randomisation functionality.
-
-//////////////////// Delay functionality:
-
-const unsigned int time_scale = 1;
-
-void delay_random_ms(unsigned int range_min, unsigned int range_max)
-{
-    /* Generate random +ve number in given range, in milliseconds: */
-    unsigned int us = random_int(range_min, range_max);
-    /* Convert milliseconds to microseconds, and apply time scale: */
-    us = us * 1000 * time_scale;
-    usleep(us);
-}
-
-//////////////////// End delay functionality.
-
 //////////////////// Car functionality and model:
 
 typedef struct car_t
@@ -181,7 +138,7 @@ typedef struct car_info_t
     uint8_t entrance_num;
 } car_info_t;
 
-void *car_sim_loop(void *args);
+void *car_simulation_loop(void *args);
 
 void entrance_queue_init(entrance_queue_t *entrance_queues)
 {
@@ -243,7 +200,7 @@ void manage_entrances(void *args)
                 car_info->car_node = next_car_node;
                 car_info->entrance_queue = entrance_queues;
                 car_info->entrance_num = e;
-                thread_pool_add_request(&car_thread_pool, car_sim_loop, car_info);
+                thread_pool_add_request(&car_thread_pool, car_simulation_loop, car_info);
             }
         }
     }
@@ -256,13 +213,13 @@ void generate_license_plate(char *lplate)
     /* Generate numbers: */
     for(uint8_t i = 0; i < LICENSE_PLATE_LENGTH/2; ++i)
     {
-        lplate[i] = random_digit();
+        lplate[i] = random_digit(&random_gen_mutex);
     }
 
     /* Generate letters (Capitalised ASCII): */
     for(uint8_t i = LICENSE_PLATE_LENGTH/2; i < LICENSE_PLATE_LENGTH; ++i)
     {
-        lplate[i] = random_letter();
+        lplate[i] = random_letter(&random_gen_mutex);
     }
 }
 
@@ -282,7 +239,7 @@ void generate_unique_license_plate(char *lplate)
 void generate_and_queue_car(entrance_queue_t *entrance_queues)
 {   
     /* Chose a random entrance to queue at: */
-    uint8_t entrance_num = random_int(0, NUM_ENTRANCES - 1);
+    uint8_t entrance_num = random_int(&random_gen_mutex, 0, NUM_ENTRANCES - 1);
     
     /* Create node in linked list for a new car: (This will allocate memory for new car) */
     node_t *car_node = llist_append_empty(entrance_queues->queue[entrance_num], sizeof(car_t));
@@ -322,7 +279,7 @@ int car_compare_lplate(const void *lplate1, const void *car)
 //     pthread_join(car->sim_thread, NULL);
 // }
 
-void *car_sim_loop(void *args)
+void *car_simulation_loop(void *args)
 {
     car_info_t *car_info = (car_info_t *)args;
     node_t *car_node = car_info->car_node;
@@ -358,7 +315,7 @@ void *car_sim_loop(void *args)
     /* Go to assigned level and trigger level LPS: */
 
     /* Stay in car park for a random period of time (between 100-10,000 ms): */
-    delay_random_ms(100, 10000);
+    delay_random_ms(&random_gen_mutex, 100, 10000, time_scale);
 
     /* Leave after finish parking, triggering level LPS and exit LPS: */ 
 
@@ -394,7 +351,7 @@ void *generate_cars_loop(void *args)
         pthread_mutex_unlock(&entrance_queues->mutex);
 
         /* Sleep for random time: */
-        delay_random_ms(1, 100);
+        delay_random_ms(&random_gen_mutex, 1, 100, time_scale);
 
         if(cars_simulated >= cars_to_sim)
         {
@@ -415,7 +372,7 @@ int main(void)
 {
     _quit = false;
 
-    random_init(time(0));
+    random_init(&random_gen_mutex, time(0));
 
     /* Initialise shared memory: */
         /* Create shared memory object and attach: */
@@ -484,4 +441,6 @@ int main(void)
 
         /* Destroy shared memory: */
     destroy_shared_object(&shared_mem);
+
+    random_close(&random_gen_mutex);
 }
