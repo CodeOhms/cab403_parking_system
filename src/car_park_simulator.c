@@ -172,7 +172,7 @@ void car_leave_entrance(entrance_queue_t *entrance_queues, uint8_t entrance_num)
     pthread_cond_signal(&entrance_queues->busy);
 }
 
-void manage_entrances(void *args)
+void *manage_entrances_loop(void *args)
 {
     entrance_queue_t *entrance_queues = (entrance_queue_t *)args;
 
@@ -206,6 +206,8 @@ void manage_entrances(void *args)
     }
 
     pthread_mutex_unlock(&entrance_queues->mutex);
+
+    return NULL;
 }
 
 void generate_license_plate(char *lplate)
@@ -430,10 +432,13 @@ int main(void)
         /* Setup car entrance queue manager thread: */
     pthread_mutex_init(&car_list_mutex, NULL);
     llist_init(&car_list, car_compare_lplate, NULL);
+    pthread_t manage_entrances_thread;
+    pthread_create(&manage_entrances_thread, NULL, manage_entrances_loop, (void *)&entrance_queues);
 
     /* End of simulation: */
         /* Close all threads: */
     pthread_join(car_gen_thread, NULL);
+    thread_pool_close(&car_thread_pool);
 
         /* Destroy mutex and condition attribute variables: */
     pthread_mutexattr_destroy(&mutex_attr);

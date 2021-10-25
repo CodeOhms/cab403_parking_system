@@ -24,6 +24,12 @@ void thread_pool_init(thread_pool_t *self)
 
 void thread_pool_close(thread_pool_t *self)
 {
+    /* Signal to all threads to quit: */
+    pthread_mutex_lock(&self->quit_mutex);
+    self->quit = true;
+    pthread_mutex_unlock(&self->quit_mutex);
+    pthread_cond_broadcast(&self->got_request);
+
     /* Close all threads: */
     for(size_t i = 0; i < NUM_HANDLER_THREADS; ++i)
     {
@@ -90,8 +96,9 @@ request_t *get_request(thread_pool_t *self)
     node_t *request_node = llist_pop(&self->request_list);
     request_t *a_request = NULL;
     if(request_node != NULL)
-    { /* Empty list */
+    { /* Not an empty list. */
         a_request = (request_t *)request_node->data;
+        --self->num_requests;
     }
 
     return a_request;
