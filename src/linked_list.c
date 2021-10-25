@@ -31,17 +31,23 @@ void llist_close(list_t *self)
         free(current->data);
         free(current);
     }
+
+    /* Free memory of linked list management structure: */
+    free(self);
 }
 
 node_t *llist_find(list_t *self, void *cmp_to)
 {
-    for(node_t* current = self->head; current != NULL; current = current->next)
+    if(self->compare != NULL)
     {
-        if(current->data != NULL)
-        { /* Need to check this as this impl allows a node with data == NULL. */
-            if(self->compare(cmp_to, current->data) == 0)
-            {
-                return current;
+        for(node_t* current = self->head; current != NULL; current = current->next)
+        {
+            if(current->data != NULL)
+            { /* Need to check this as this impl allows a node with data == NULL. */
+                if(self->compare(cmp_to, current->data) == 0)
+                {
+                    return current;
+                }
             }
         }
     }
@@ -206,4 +212,16 @@ void llist_delete_node(list_t *self, node_t *node)
     free(node->data);
     free(node);
     node = NULL;
+}
+
+void llist_delete_dangling_node(node_t *dangling_node, void (*destructor)(void *node))
+{
+    if(destructor != NULL)
+    {
+        destructor(dangling_node);
+    }
+
+    free(dangling_node->data);
+    free(dangling_node);
+    dangling_node = NULL;
 }

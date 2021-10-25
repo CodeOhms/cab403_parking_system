@@ -160,11 +160,96 @@ typedef struct car_t
 {
     char license_plate[LICENSE_PLATE_LENGTH];
     uint8_t level_assigned;
-    pthread_t sim_thread;
+    // pthread_t sim_thread;
 } car_t;
 
-list_t *car_list = NULL;
+list_t *car_list;
 pthread_mutex_t car_list_mutex;
+
+typedef struct entrance_queue_t
+{
+    list_t *queue[NUM_ENTRANCES];
+    bool is_busy[NUM_ENTRANCES];
+    pthread_mutex_t mutex;
+    pthread_cond_t busy;
+} entrance_queue_t;
+
+typedef struct car_info_t
+{
+    node_t *car_node;
+    entrance_queue_t *entrance_queue;
+    uint8_t entrance_num;
+} car_info_t;
+
+void *car_sim_loop(void *args);
+
+void entrance_queue_init(entrance_queue_t *entrance_queues)
+{
+    /* Initialise the linked lists: */
+    for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
+    {
+        llist_init(&entrance_queues->queue[e], NULL, NULL);
+    }
+
+    /* Initialise the mutex and condition variables: */
+    pthread_mutex_init(&entrance_queues->mutex, NULL);
+    pthread_cond_init(&entrance_queues->busy, NULL);
+}
+
+void entrance_queue_close(entrance_queue_t *entrance_queues)
+{
+    for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
+    {
+        llist_close(entrance_queues->queue[e]);
+    }
+
+    pthread_mutex_destroy(&entrance_queues->mutex);
+    pthread_cond_destroy(&entrance_queues->busy);
+}
+
+void car_leave_entrance(entrance_queue_t *entrance_queues, uint8_t entrance_num)
+{
+    pthread_mutex_lock(&entrance_queues->mutex);
+    entrance_queues->is_busy[entrance_num] = false;
+    pthread_mutex_unlock(&entrance_queues->mutex);
+    pthread_cond_signal(&entrance_queues->busy);
+}
+
+void manage_entrances(void *args)
+{
+    entrance_queue_t *entrance_queues = (entrance_queue_t *)args;
+
+    while(!_quit)
+    {
+        pthread_mutex_lock(&entrance_queues->mutex);
+        
+        pthread_cond_wait(&entrance_queues->busy, &entrance_queues->mutex);
+        /* Check each entrance and allow the next car in if available: */
+        for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
+        {
+            if(!entrance_queues->is_busy[e])
+            {
+                /* Allow next car in: */
+                entrance_queues->is_busy[e] = true;
+                    /* Put into linked list of existing cars: */
+                node_t *old_next_car_node = llist_pop(entrance_queues->queue[e]);
+                node_t *next_car_node = llist_push(car_list, next_car_node->data, sizeof(car_t));
+
+                    /* Note `llist_push()` will shallow copy the node data, so free the old copy: */
+                llist_delete_dangling_node(old_next_car_node, NULL);
+                
+                    /* Spin off a thread for it: */
+                car_info_t *car_info = (car_info_t *)malloc(sizeof(car_info_t));
+                car_info->car_node = next_car_node;
+                car_info->entrance_queue = entrance_queues;
+                car_info->entrance_num = e;
+                thread_pool_add_request(&car_thread_pool, car_sim_loop, car_info);
+            }
+        }
+    }
+
+    pthread_mutex_unlock(&entrance_queues->mutex);
+}
 
 void generate_license_plate(char *lplate)
 {
@@ -181,17 +266,30 @@ void generate_license_plate(char *lplate)
     }
 }
 
-void generate_car(car_t *new_car)
+void generate_unique_license_plate(char *lplate)
 {
-    /* Generate license plate: */
-        /* Ensure car doesn't currently exist (no license plate duplicates): */
-    char lplate[LICENSE_PLATE_LENGTH];
+    /* Ensure car doesn't currently exist (no license plate duplicates): */
     generate_license_plate(lplate);
     while(llist_find(car_list, lplate) != NULL)
     {
         generate_license_plate(lplate);
     }
-    memcpy(new_car->license_plate, lplate, LICENSE_PLATE_LENGTH);
+}
+
+/**
+ * @brief Generate a car and place it into the queue of a random entrance.
+ */
+void generate_and_queue_car(entrance_queue_t *entrance_queues)
+{   
+    /* Chose a random entrance to queue at: */
+    uint8_t entrance_num = random_int(0, NUM_ENTRANCES - 1);
+    
+    /* Create node in linked list for a new car: (This will allocate memory for new car) */
+    node_t *car_node = llist_append_empty(entrance_queues->queue[entrance_num], sizeof(car_t));
+    car_t *new_car = (car_t *)car_node->data;
+    
+    /* Generate license plate: */
+    generate_unique_license_plate(new_car->license_plate);
 }
 
 int car_compare_lplate(const void *lplate1, const void *car)
@@ -226,17 +324,21 @@ int car_compare_lplate(const void *lplate1, const void *car)
 
 void *car_sim_loop(void *args)
 {
-    node_t *car_node = (node_t *)args;
+    car_info_t *car_info = (car_info_t *)args;
+    node_t *car_node = car_info->car_node;
 
-    /* Aquire mutex for the entrance LPR: */
+    /* Aquire mutex for the entrance LPS: */
 
-    /* Wait a bit before triggering the LPR: */
+    /* Wait a bit before triggering the LPS: */
 
-    /* Update the LPR license plate field, then trigger LPR cond. var. for the entrance: */
+    /* Update the LPS license plate field, then trigger LPS cond. var. for the entrance: */
     pthread_cond_signal(&shared_mem.data->entrances[0].lplate_sensor.lplate_sensor_update_flag);
 
+    /* Car finsihed with the LPS, unlock mutex: */
+    
+
     /* Get information from digital sign: */
-    char display;
+    char display = ' ';
         /* Aquire mutex for the sign: */
 
         /* Wait for sign to update: */
@@ -249,19 +351,21 @@ void *car_sim_loop(void *args)
     /* Wait for boom gate to open: */
 
     /* Continue into the car park: */
-        /* Car finished with the LPR and ready to enter, unlock mutex: */
+        /* Car finished with the LPS and ready to enter, unlock mutex.
+           Also, signal that entrance is available to the next car: */
+        car_leave_entrance(car_info->entrance_queue, car_info->entrance_num);
 
-    /* Go to assigned level and trigger level LPR: */
+    /* Go to assigned level and trigger level LPS: */
 
     /* Stay in car park for a random period of time (between 100-10,000 ms): */
     delay_random_ms(100, 10000);
 
-    /* Leave after finish parking, triggering level LPR and exit LPR: */ 
+    /* Leave after finish parking, triggering level LPS and exit LPS: */ 
 
     }
     else
     { /* Car rejected. */
-        /* Car finsihed with the LPR and ready to leave, unlock mutex: */
+        car_leave_entrance(car_info->entrance_queue, car_info->entrance_num);
     }
 
     /* Remove car from simulation: */
@@ -269,31 +373,25 @@ void *car_sim_loop(void *args)
     llist_delete_node(car_list, car_node);
     pthread_mutex_unlock(&car_list_mutex);
 
+    /* Free memory for car info, but not its contents (DO IT LAST): */
+    free(car_info);
+
     return NULL;
 }
 
 void *generate_cars_loop(void *args)
 {
+    entrance_queue_t *entrance_queues = (entrance_queue_t *)args;
+
     // TODO: have ability to limit number of cars in the simulation from cmd line:
     size_t cars_to_sim = 10;
     size_t cars_simulated = 0;
 
     while(!_quit)
     {
-        pthread_mutex_lock(&car_list_mutex);
-
-        // /* Create node in linked list for a new car: (This will allocate memory for new car) */
-        node_t *car_node = llist_push_empty(car_list, sizeof(car_t));
-
-        /* Generate car: */
-        car_t *new_car = (car_t *)car_node->data;
-        generate_car(new_car);
-        car_node = llist_push(car_list, new_car, sizeof(car_t));
-
-        pthread_mutex_unlock(&car_list_mutex);
-
-        /* Simulate car via thread pool: */
-        thread_pool_add_request(&car_thread_pool, car_sim_loop, car_node);
+        pthread_mutex_lock(&entrance_queues->mutex);
+        generate_and_queue_car(entrance_queues);
+        pthread_mutex_unlock(&entrance_queues->mutex);
 
         /* Sleep for random time: */
         delay_random_ms(1, 100);
@@ -329,7 +427,7 @@ int main(void)
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
         /* Entrances: */
-    for(unsigned int i = 0; i < NUM_ENTRANCES; ++i)
+    for(uint8_t i = 0; i < NUM_ENTRANCES; ++i)
     {
             /* Boom gate: */
         pthread_mutex_init(&shared_mem.data->entrances[i].bgate.bgate_mutex, &mutex_attr);
@@ -344,7 +442,7 @@ int main(void)
         pthread_cond_init(&shared_mem.data->entrances[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
     }
         /* Exits: */
-    for(unsigned int i = 0; i < NUM_ENTRANCES; ++i)
+    for(uint8_t i = 0; i < NUM_EXITS; ++i)
     {
             /* Boom gate: */
         pthread_mutex_init(&shared_mem.data->exits[i].bgate.bgate_mutex, &mutex_attr);
@@ -355,7 +453,7 @@ int main(void)
         pthread_cond_init(&shared_mem.data->exits[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
     }
         /* Levels: */
-    for(unsigned int i = 0; i < NUM_ENTRANCES; ++i)
+    for(uint8_t i = 0; i < NUM_LEVELS; ++i)
     {   
             /* License plate sensor: */
         pthread_mutex_init(&shared_mem.data->levels[i].lplate_sensor.lplate_sensor_mutex, &mutex_attr);
@@ -365,11 +463,16 @@ int main(void)
     /* Initialise threading: */
         /* Setup thread pool for cars: */
     thread_pool_init(&car_thread_pool);
+
         /* Setup car generator thread: */
+    entrance_queue_t entrance_queues;
+    entrance_queue_init(&entrance_queues);
+    pthread_t car_gen_thread;
+    pthread_create(&car_gen_thread, NULL, generate_cars_loop, (void *)&entrance_queues);
+
+        /* Setup car entrance queue manager thread: */
     pthread_mutex_init(&car_list_mutex, NULL);
     llist_init(&car_list, car_compare_lplate, NULL);
-    pthread_t car_gen_thread;
-    pthread_create(&car_gen_thread, NULL, generate_cars_loop, NULL);
 
     /* End of simulation: */
         /* Close all threads: */

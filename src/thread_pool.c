@@ -71,6 +71,7 @@ void thread_pool_add_request(thread_pool_t *self, void *(*func)(void *), void *a
     }
 
     /* signal the condition variable - there's a new request to handle */
+    if(&self->request_mutex != NULL)
     {
         pthread_cond_signal(&self->got_request);
     }

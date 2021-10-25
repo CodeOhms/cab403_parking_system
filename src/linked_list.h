@@ -53,4 +53,11 @@ node_t *llist_pop(list_t *self);
 
 void llist_delete_node(list_t *self, node_t *node);
 
+/**
+ * @brief Use this function to delete nodes that are not connected to a linked list.
+ * For example, if a node is popped of a list and deletion needs to be delayed.
+ * Sets the given node to NULL.
+ */
+void llist_delete_dangling_node(node_t *dangling_node, void (*destructor)(void *node));
+
 #endif //LINKED_LIST_H
