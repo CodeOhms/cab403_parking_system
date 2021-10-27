@@ -129,7 +129,7 @@ typedef struct entrance_queues_sh_data_t
 {
     list_t *queue[NUM_ENTRANCES];
     sem_t full[NUM_ENTRANCES];
-    sem_t empty[NUM_ENTRANCES];
+    sem_t cars_simulating;
     pthread_mutex_t mutex[NUM_ENTRANCES];
 } entrance_queues_sh_data_t;
 
@@ -162,11 +162,7 @@ void entrance_queue_init(entrance_queues_sh_data_t *e_q_sh_data)
     {
         sem_init(&e_q_sh_data->full[e], 0, 0);
     }
-    for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
-    {
-        // sem_init(&e_q_sh_data->empty[e], 0, 1);
-        sem_init(&e_q_sh_data->empty[e], 0, 0);
-    }
+    sem_init(&e_q_sh_data->cars_simulating, 0, 0);
 
     /* Initialise the mutexes: */
     for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
@@ -186,10 +182,7 @@ void entrance_queue_close(entrance_queues_sh_data_t *e_q_sh_data)
     {
         sem_destroy(&e_q_sh_data->full[e]);
     }
-    for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
-    {
-        sem_destroy(&e_q_sh_data->empty[e]);
-    }
+    sem_destroy(&e_q_sh_data->cars_simulating);
 
     for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
     {
@@ -199,14 +192,9 @@ void entrance_queue_close(entrance_queues_sh_data_t *e_q_sh_data)
 
 void car_leave_entrance(car_info_t *car_info, uint8_t entrance_num)
 {
-    // pthread_mutex_lock(&e_queue->sh_data->mutex);
-
-     /* Lock the entrance occupied mutex: */
+    /* Lock the entrance occupied mutex: */
     pthread_mutex_unlock(car_info->occupy_mutex);
     pthread_cond_signal(car_info->entrance_leave);
-
-    // pthread_mutex_unlock(&entrance_queues->mutex);
-    // pthread_cond_signal(&entrance_queues->busy);
 }
 
 /**
@@ -243,7 +231,6 @@ void *manage_entrances_loop(void *args)
             /* Remove car from queue: */
         node_t *old_next_car_node = llist_pop(e_queues_data->queue[e_id]);
         pthread_mutex_unlock(&e_queues_data->mutex[e_id]);
-        sem_post(&e_queues_data->empty[e_id]);
 
             /* Put into linked list of existing cars: */
         pthread_mutex_lock(&car_list_mutex);
@@ -349,7 +336,7 @@ void *car_simulation_loop(void *args)
 {
     car_info_t *car_info = (car_info_t *)args;
     node_t *car_node = car_info->car_node;
-    entrance_queues_sh_data_t *e_queue_data = car_info->e_queue->sh_data;
+    entrance_queues_sh_data_t *e_queues_data = car_info->e_queue->sh_data;
     uint8_t e_id = car_info->e_queue->entrance_num;
 
     /* Lock the entrance occupied mutex: */
@@ -407,9 +394,8 @@ void *car_simulation_loop(void *args)
     /* Signal to car generator that car has finished simulating: */
     pthread_mutex_lock(&cars_sim_ended_mutex);
     ++cars_sim_ended;
-    sem_post(&e_queue_data->empty[0]);
+    sem_post(&e_queues_data->cars_simulating);
     pthread_mutex_unlock(&cars_sim_ended_mutex);
-    // pthread_cond_signal(&cars_sim_ended_cond);
 
     return NULL;
 }
@@ -427,8 +413,6 @@ void *generate_cars_loop(void *args)
     {
         /* Chose a random entrance to queue at: */
         uint8_t entrance_num = random_int(&random_gen_mutex, 0, NUM_ENTRANCES - 1);
-        // uint8_t entrance_num = 0;
-        // sem_wait(&e_q_sh_data->empty[entrance_num]);
         pthread_mutex_lock(&e_q_sh_data->mutex[entrance_num]);
         generate_and_queue_car(e_q_sh_data, entrance_num);
         ++cars_sim_started;
@@ -452,8 +436,7 @@ void *generate_cars_loop(void *args)
                     break;
                 }
                 pthread_mutex_unlock(&cars_sim_ended_mutex);
-                // pthread_cond_wait(&cars_sim_ended_cond, &cars_sim_ended_mutex);
-                sem_wait(&e_q_sh_data->empty[0]);
+                sem_wait(&e_q_sh_data->cars_simulating);
             }
         }
     } while(!quit);
