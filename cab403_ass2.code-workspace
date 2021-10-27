@@ -15,7 +15,10 @@
 			"tuple": "c",
 			"array": "c",
 			"string": "c",
-			"string_view": "c"
+			"string_view": "c",
+			"numbers": "c",
+			"thread": "c",
+			"condition_variable": "c"
 		}
 	}
 }
