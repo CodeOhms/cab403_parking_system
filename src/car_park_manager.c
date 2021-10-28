@@ -10,19 +10,24 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <string.h>
+#include "utils.h"
 #include "shared_memory.h"
 #include "linked_list.h"
+#include "thread_pool.h"
+#include "manage_hardware.h"
 
 #define FLOOR_CAPACITY 20
 #define NUM_LEVELS 5
 
 // Create variable
 char license_plate[100][7];
+int vehicle_tracker[100];
 int license_plate_length = 0;
 double start_time[100];
 
 int revenue = 0;
-int vehicle_counter[NUM_LEVELS];
+int vehicle_counter_floor[NUM_LEVELS];
+int vehicle_counter_total;
 
 shared_mem_t shared_mem;
 
@@ -44,6 +49,8 @@ struct htab {
     item_t **buckets;
     size_t size;
 };
+
+htab_t vehicle_table;
 
     // Initialise a new hash table with n buckets.
 bool htab_init(htab_t *h, size_t n) {
@@ -107,10 +114,10 @@ bool htab_add(htab_t *h, char *key, int value) {
 
     // Print the hash table.
 void htab_print(htab_t *h) {
-    printf("hash table with %d buckets\n", h->size);
+    printf("hash table with %ld buckets\n", h->size);
     for (size_t i = 0; i < h->size; ++i)
     {
-        printf("bucket %d: ", i);
+        printf("bucket %ld: ", i);
         if (h->buckets[i] == NULL)
         {
             printf("empty\n");
@@ -176,7 +183,7 @@ void htab_destroy(htab_t *h) {
 }
 
 // Setup License plate for reading
-void lp_list ( htab_t *h ) {
+void lp_list ( void ) {
 
     FILE *plate = fopen("plates.txt", "r");
 
@@ -191,7 +198,7 @@ void lp_list ( htab_t *h ) {
         }
         license_plate[license_plate_length][6] = '\0';
 
-        htab_add(h, license_plate[license_plate_length], license_plate_length+1);
+        htab_add(&vehicle_table, license_plate[license_plate_length], license_plate_length+1);
 
         license_plate_length++;
 
@@ -206,26 +213,15 @@ void lp_list ( htab_t *h ) {
 // Function for Scanning For license Plate
 int lp_scan(char license[6]){
 
-    for (int i = 0; i < license_plate_length; i++){
-        
-        // Create Variable for checking
-        int check = 1;
-
         // Check if characters match
-        for (int j = 0; j < 6; j++){
-            check = check * (license_plate[i][j] == license[j]);
-        }
-
-        // Check Variable
-        if (check == 1)
+        if(htab_find(&vehicle_table, license))
         {
             printf("Match Found \n");
             return 1;
         }
-        
-    }
 
-    printf("No Match\n");
+
+    printf("No Match \n");
     return 0;
 }
 
@@ -263,40 +259,50 @@ void write_bill ( char license_plate[6], float bill){
 }
 
 // Function to Open Entrence Boom Gate
-void bgate_entrance( int level, htab_t *h ) {
+void entrance_monitor( void *args ) {
+    int gate = (int)*args;
 
     printf("Boom Gate Entrance Created\n");
     
-    char license[7] = "361ECD";
+    char license[7];
+    int floor_message;
 
     struct timeval time;
 
     // Start For Loop
     for(;;){
         
-        // Update License
-        // Use lplate_sensor_read
+        // Wait for License Plate
+        lplate_sensor_read(&shared_mem->Entrance[gate].lplate_sensor_read,license);
 
-        // Check for Car at Gate and these is space
-        if (license != "000000" && vehicle_counter[level] < FLOOR_CAPACITY){
-
-            printf("Vehicle Detected\n");
+        // Check if there is space in car park
+        if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS){
 
         // Check if license plate is on list
             if (lp_scan(license) == 1) {
 
                 // Get Value of License Plate
-                int license_value = htab_find(h, license)->value;
+                int license_value = htab_find(&vehicle_table, license)->value;
+
+        // Scan for Empty Floor
+            for (int i = 0; i < NUM_LEVELS; i++){
+
+                // If floor enough space, assign message,
+                if (vehicle_counter_floor[i] < FLOOR_CAPACITY) {
+                    floor_message = i;
+                    // Break Loop by changing i
+                    i = NUM_LEVELS + 1;
+                }
+            }
 
         // Store time the Car in hash table
             // Calculate Time in MS
                 gettimeofday(&time, NULL);
                 double current_time_ms = time.tv_sec * 1000 + time.tv_usec / 10000;
-
                 start_time[license_value] = current_time_ms;
 
         // Update Counter
-                vehicle_counter[level]++;
+                vehicle_counter_total++;
 
         // Signal Boom Gate to Open
             // Acquire Mutex
@@ -317,36 +323,32 @@ void bgate_entrance( int level, htab_t *h ) {
 }
 
 // Function to open Exit Boom Gate
-void bgate_exit( int level, htab_t *h ) {
+void exit_monitor( void *args ) {
+
+    int gate = (int)*args;
 
     printf("Boomgate Exit Created\n");
 
-    char license[7] = "361ECD"; // update lplate_sensor_read
+    char license[7];
     double bill = 0;
-
-    struct timeval time;
-
 
     // Start For Loop
     for(;;){
 
-        // Update License
-            // license = lplate_sensor_read(); // !!! 
+        // Wait for License
+        lplate_sensor_read(&shared_mem->Exit[gate].lplate_sensor_read,license);
 
-        // Check for Car at Gate
-        if (license != "000000"){
-
-            // Get Value of License Plate
-            int license_value = htab_find(h, license)->value;
+        // Get Value of License Plate
+        int license_value = htab_find(&vehicle_table, license)->value;
 
         // Calculate Bill
-            bill = calculate_bill(start_time[license_value]);
+        bill = calculate_bill(start_time[license_value]);
 
         // Add to revenue 
-            revenue = revenue + bill;
+        revenue = revenue + bill;
 
         // Write to Bill.txt
-            write_bill(license, bill);
+        write_bill(license, bill);
         
         // Open Gate
             // Acquire Mutex
@@ -355,46 +357,69 @@ void bgate_exit( int level, htab_t *h ) {
 
             // Update
 
-        }
 
-        // Wait before running function again
-        usleep(1000000);
-
-        // Break after one loop for testing
-        break;
     }
 
 }
 
+// License Plate Monitor keeps track of vehicles entering on the floor
+    // Store a 0 value for cars in the park which can be used to display vehicle,
+void lp_monitor( void *args ) {
 
-int main()
+    int floor = (int)*args;
+
+    printf("License Plate Sensor Created \n");
+
+    char license[7];
+
+    // Start For Loop, license)->value;
+
+    for(;;){
+
+        // Update License
+        lplate_sensor_read(&shared_mem->Floor[floor].lplate_sensor_read,license);
+
+        // Get Value of License Plate
+        int license_value = htab_find(&vehicle_table, license)->value;
+
+        // Check if vehicle is entering
+        if (vehicle_tracker[license_value] == 0) {
+            vehicle_counter_floor[floor]++;
+            vehicle_tracker[license_value] = floor;
+        }
+        // If not entering, must be leaving
+        else {
+            vehicle_counter_floor[floor]--;
+            vehicle_tracker[license_value] = 0;
+        }
+
+    }
+
+}
+
+int main( void )
 {
     // Initialise
             // create a hash table with 10 buckets
     size_t buckets = 10;
-    htab_t h;
-    htab_init(&h, buckets);
+    htab_init(&vehicle_table, buckets);
         // Create License Plate Array
-    lp_list( &h );
+    lp_list();
 
         /* Setup shared memory and attach: */
     //shared_mem_attach(&shared_mem);
 
-    // Create Thread for Entrance
+    // Create Thread for Entrance   
     for (int i = 0; i < NUM_LEVELS; i++){
         // pthread_t bgate_entrance_thread;
         // pthread_create(&bgate_entrance_thread, NULL, bgate_entrance, (1, &h) );
     }
-
-    bgate_entrance(1, &h);
 
     // Create Thread for Exit
     for (int i = 0; i < NUM_LEVELS; i++){
     // pthread_t bgate_exit_thread;
     // pthread_create(&bgate_exit_thread, NULL, bgate_exit, (1, &vehicle_time) );
     }
-
-    bgate_exit(1, &h);
 
     // Displaying Information
         // Signs Display
