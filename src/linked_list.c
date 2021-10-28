@@ -193,14 +193,22 @@ void llist_delete_node(list_t *self, node_t *node)
 
     /* Prior node point to next node: */
     if(previous_node != NULL)
-    { /* If NULL, then at end of list. */
+    {
         previous_node->next = next_node;
+    }
+    else
+    { /* If NULL, then at head of list. */
+        self->head = next_node;
     }
 
     /* Next node previous pointer connect to previous node: */
     if(next_node != NULL)
-    { /* If NULL, at head of list. */
+    {
         next_node->previous = previous_node;
+    }
+    else
+    { /* If NULL, at end of list. */
+        self->tail = previous_node;
     }
 
     if(self->destructor != NULL)
