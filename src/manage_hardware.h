@@ -51,7 +51,7 @@ void boom_gate_manage(boom_gate_t *boom_gate)
     pthread_mutex_unlock(&boom_gate->bgate_mutex);
 }
 
-void boom_gate_open(boom_gate_t *boom_gate){
+void boom_gate_open(boom_gate_t *boom_gate)
 {
     // Set state to rising
     boom_gate->bgate_state = R;

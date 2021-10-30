@@ -259,13 +259,14 @@ void write_bill ( char license_plate[6], float bill){
 }
 
 // Function to Open Entrence Boom Gate
-void entrance_monitor( void *args ) {
-    int gate = (int)*args;
+void *entrance_monitor( void *args ) {
+
+    int *gate = (void *)args;
 
     printf("Boom Gate Entrance Created\n");
     
     char license[7];
-    int floor_message;
+    int floor_signal;
 
     struct timeval time;
 
@@ -273,8 +274,7 @@ void entrance_monitor( void *args ) {
     for(;;){
         
         // Wait for License Plate
-        lplate_sensor_read(&shared_mem->Entrance[gate].lplate_sensor_read,license);
-
+        lplate_sensor_read(&shared_mem.data->entrances[gate].lplate_sensor,license);
         // Check if there is space in car park
         if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS){
 
@@ -289,7 +289,7 @@ void entrance_monitor( void *args ) {
 
                 // If floor enough space, assign message,
                 if (vehicle_counter_floor[i] < FLOOR_CAPACITY) {
-                    floor_message = i;
+                    floor_signal = i;
                     // Break Loop by changing i
                     i = NUM_LEVELS + 1;
                 }
@@ -313,19 +313,13 @@ void entrance_monitor( void *args ) {
 
             }
         }
-
-        // Wait before running function again
-        usleep(1000000);
-
-        // Break After 1 loop for testing
-        break;
     }
 }
 
 // Function to open Exit Boom Gate
-void exit_monitor( void *args ) {
+void *exit_monitor( void *args ) {
 
-    int gate = (int)*args;
+    int *gate = (void *)args;
 
     printf("Boomgate Exit Created\n");
 
@@ -336,7 +330,7 @@ void exit_monitor( void *args ) {
     for(;;){
 
         // Wait for License
-        lplate_sensor_read(&shared_mem->Exit[gate].lplate_sensor_read,license);
+        lplate_sensor_read(&shared_mem.data->exits[gate].lplate_sensor,license);
 
         // Get Value of License Plate
         int license_value = htab_find(&vehicle_table, license)->value;
@@ -364,9 +358,9 @@ void exit_monitor( void *args ) {
 
 // License Plate Monitor keeps track of vehicles entering on the floor
     // Store a 0 value for cars in the park which can be used to display vehicle,
-void lp_monitor( void *args ) {
+void *lp_monitor( void *args ) {
 
-    int floor = (int)*args;
+    int *floor = (void *)args;
 
     printf("License Plate Sensor Created \n");
 
@@ -377,7 +371,7 @@ void lp_monitor( void *args ) {
     for(;;){
 
         // Update License
-        lplate_sensor_read(&shared_mem->Floor[floor].lplate_sensor_read,license);
+        lplate_sensor_read(&shared_mem.data->levels[floor].lplate_sensor,license);
 
         // Get Value of License Plate
         int license_value = htab_find(&vehicle_table, license)->value;
@@ -397,7 +391,8 @@ void lp_monitor( void *args ) {
 
 }
 
-int main( void )
+// Function
+int main(void)
 {
     // Initialise
             // create a hash table with 10 buckets
@@ -407,20 +402,26 @@ int main( void )
     lp_list();
 
         /* Setup shared memory and attach: */
+    shared_mem_attach(&shared_mem);
     //shared_mem_attach(&shared_mem);
 
     // Create Thread for Entrance   
-    for (int i = 0; i < NUM_LEVELS; i++){
-        // pthread_t bgate_entrance_thread;
-        // pthread_create(&bgate_entrance_thread, NULL, bgate_entrance, (1, &h) );
+    for (int i = 0; i < NUM_ENTRANCES; i++){
+        pthread_t entrance_monitor_thread;
+        pthread_create(&entrance_monitor_thread, NULL, entrance_monitor, (void *)i);
     }
 
     // Create Thread for Exit
-    for (int i = 0; i < NUM_LEVELS; i++){
-    // pthread_t bgate_exit_thread;
-    // pthread_create(&bgate_exit_thread, NULL, bgate_exit, (1, &vehicle_time) );
+    for (int i = 0; i < NUM_EXITS; i++){
+        pthread_t exit_monitor_thread;
+        pthread_create(&exit_monitor_thread, NULL, exit_monitor, (void *)i);
     }
 
+    // Create thread for LP sensor
+    for (int i = 0; i < NUM_LEVELS; i++){
+        pthread_t lp_monitor_thread;
+        pthread_create(&lp_monitor_thread, NULL, lp_monitor, (void *)i);
+    }
     // Displaying Information
         // Signs Display
 
