@@ -259,9 +259,9 @@ void write_bill ( char license_plate[6], float bill){
 }
 
 // Function to Open Entrence Boom Gate
-void *entrance_monitor( void *args ) {
+void *entrance_monitor(void *args) {
 
-    int *gate = (void *)args;
+    int *gate = (int *)args;
 
     printf("Boom Gate Entrance Created\n");
     
@@ -317,10 +317,9 @@ void *entrance_monitor( void *args ) {
 }
 
 // Function to open Exit Boom Gate
-void *exit_monitor( void *args ) {
+void *exit_monitor(void *args) {
 
-    int *gate = (void *)args;
-
+    int *gate = (int *)args;
     printf("Boomgate Exit Created\n");
 
     char license[7];
@@ -358,10 +357,9 @@ void *exit_monitor( void *args ) {
 
 // License Plate Monitor keeps track of vehicles entering on the floor
     // Store a 0 value for cars in the park which can be used to display vehicle,
-void *lp_monitor( void *args ) {
+void *lp_monitor( void *args) {
 
-    int *floor = (void *)args;
-
+    int *floor = (int *)args;
     printf("License Plate Sensor Created \n");
 
     char license[7];
@@ -408,19 +406,19 @@ int main(void)
     // Create Thread for Entrance   
     for (int i = 0; i < NUM_ENTRANCES; i++){
         pthread_t entrance_monitor_thread;
-        pthread_create(&entrance_monitor_thread, NULL, entrance_monitor, (void *)i);
+        pthread_create(&entrance_monitor_thread, NULL, entrance_monitor, (void *)&i);
     }
 
     // Create Thread for Exit
     for (int i = 0; i < NUM_EXITS; i++){
         pthread_t exit_monitor_thread;
-        pthread_create(&exit_monitor_thread, NULL, exit_monitor, (void *)i);
+        pthread_create(&exit_monitor_thread, NULL, exit_monitor, (void *)&i);
     }
 
     // Create thread for LP sensor
     for (int i = 0; i < NUM_LEVELS; i++){
         pthread_t lp_monitor_thread;
-        pthread_create(&lp_monitor_thread, NULL, lp_monitor, (void *)i);
+        pthread_create(&lp_monitor_thread, NULL, lp_monitor, (void *)&i);
     }
     // Displaying Information
         // Signs Display
