@@ -467,7 +467,7 @@ int main(void)
 
     do {
 
-        //system("clear");
+        system("clear");
         // Signs Display
         printf("Car Park\nCapacity: %d/%d\n", vehicle_counter_total,NUM_LEVELS*FLOOR_CAPACITY);
 

@@ -620,10 +620,10 @@ int main(void)
 
     /* End of simulation: */
         /* Signal to manager it's closing time: */
+    sem_wait(&quit_sem);
     sem_post(&handshake_data->simulator_finished);
 
-        /* Close all threads: */
-    sem_wait(&quit_sem);
+    /* Close all threads: */
     thread_pool_close(&car_thread_pool);
     for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
     {
