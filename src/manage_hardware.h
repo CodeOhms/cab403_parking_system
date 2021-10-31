@@ -16,7 +16,7 @@ void boom_gate_open(boom_gate_t *boom_gate);
 
 void boom_gate_close(boom_gate_t *boom_gate);
 
-void info_sign_manage(information_sign_t* info_sign, char display);
+void info_sign_update(information_sign_t* info_sign, char display);
 
 //////////////////// End prototypes.
 
@@ -66,6 +66,8 @@ void boom_gate_admit_one(boom_gate_t *boom_gate)
 
 void boom_gate_open(boom_gate_t *boom_gate)
 {
+    pthread_mutex_lock(&boom_gate->bgate_mutex);
+
     // Set state to rising
     boom_gate->bgate_state = R;
 
@@ -74,25 +76,35 @@ void boom_gate_open(boom_gate_t *boom_gate)
 
     // Wait for boom gate to open
     pthread_cond_wait(&boom_gate->bgate_update_flag, &boom_gate->bgate_mutex);
+
+    pthread_mutex_unlock(&boom_gate->bgate_mutex);
 }
 
 void boom_gate_close(boom_gate_t *boom_gate)
 {
+    pthread_mutex_lock(&boom_gate->bgate_mutex);
+
     /* Set state to lowering: */
     boom_gate->bgate_state = L;
 
     /* Signal condition variable: */
-    pthread_cond_signal(&boom_gate->bgate_update_flag);
+    pthread_cond_broadcast(&boom_gate->bgate_update_flag);
 
     /* Wait for boom gate to close: */
     pthread_cond_wait(&boom_gate->bgate_update_flag, &boom_gate->bgate_mutex);
+
+    pthread_mutex_unlock(&boom_gate->bgate_mutex);
 }
 
 //////////////////// End boom gate functionality.
 
 //////////////////// Information sign functionality:
 
-void info_sign_manage(information_sign_t* info_sign, char display)
+/**
+ * @brief Use this from the manager to update the information signs
+ * at the entrances.
+ */
+void info_sign_update(information_sign_t* info_sign, char display)
 {
     pthread_mutex_lock(&info_sign->info_sign_mutex);
     info_sign->display = display;

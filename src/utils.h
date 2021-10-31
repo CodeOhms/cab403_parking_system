@@ -6,8 +6,6 @@
 
 //////////////////// Randomisation functionality:
 
-// pthread_mutex_t random_gen_mutex;
-
 void random_init(pthread_mutex_t *mutex, unsigned int seed)
 {
     pthread_mutex_init(mutex, NULL);
@@ -42,6 +40,12 @@ char random_digit(pthread_mutex_t *mutex)
 //////////////////// End randomisation functionality.
 
 //////////////////// Delay functionality:
+
+void delay_ms(unsigned int t, unsigned int time_scale)
+{
+    unsigned int us = us * 1000 * time_scale;
+    usleep(us);
+}
 
 void delay_random_ms(pthread_mutex_t *mutex, unsigned int range_min, unsigned int range_max, unsigned int time_scale)
 {

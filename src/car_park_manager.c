@@ -386,7 +386,8 @@ void *lp_monitor( void *args) {
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
 
-    char license[7];
+    char license[LICENSE_PLATE_LENGTH + 1];
+    license[LICENSE_PLATE_LENGTH] = '\0';
 
     // Start For Loop,
 

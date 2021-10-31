@@ -240,6 +240,81 @@ void wait_for_manager(shared_handshake_t *handshake)
 
 //////////////////// End handshake functionality.
 
+//////////////////// Information sign functionality:
+
+void info_sign_read(information_sign_t *info_sign, char *display)
+{
+    pthread_mutex_lock(&info_sign->info_sign_mutex);
+    pthread_cond_wait(&info_sign->info_sign_update_flag, &info_sign->info_sign_mutex);
+    *display = info_sign->display;
+    pthread_mutex_unlock(&info_sign->info_sign_mutex);
+}
+
+//////////////////// End information sign functionality.
+
+//////////////////// Boom gate functionality:
+
+/**
+ * @brief Handles simulating a boom gate.
+ */
+void boom_gate_loop(void *args)
+{
+    boom_gate_t *bgate = (boom_gate_t *)args;
+
+    bgate->bgate_state = C;
+
+    pthread_mutex_lock(&bgate->bgate_mutex);
+
+    while(!quit)
+    {
+        pthread_cond_wait(&bgate->bgate_update_flag, &bgate->bgate_mutex);
+
+        /* State machine: */
+        switch (bgate->bgate_state)
+        {
+            case R:
+                /* Raising: */
+                delay_ms(10, time_scale);
+                bgate->bgate_state = O;
+                break;
+
+            case L:
+                /* Lowering: */
+                delay_ms(10, time_scale);
+                bgate->bgate_state = C;
+                break;
+            
+            default:
+                break;
+        }
+    }
+
+     pthread_mutex_unlock(&bgate->bgate_mutex);
+}
+
+void boom_gate_wait_open(boom_gate_t *bgate)
+{
+    pthread_mutex_lock(&bgate->bgate_mutex);
+
+    /* Wait for boom gate to open: */
+    pthread_cond_wait(&bgate->bgate_update_flag, &bgate->bgate_mutex);
+
+    pthread_mutex_unlock(&bgate->bgate_mutex);
+}
+
+//////////////////// End boom gate functionality.
+
+//////////////////// License plate sensor functionality:
+
+void lplate_sensor_trigger(license_plate_sensor_t *lps, char* lplate)
+{
+    pthread_mutex_lock(&lps->lplate_sensor_mutex);
+    strcpy(lps->license_plate, lplate);
+    pthread_cond_signal(&lps->lplate_sensor_update_flag);
+}
+
+//////////////////// End license plate sensor functionality.
+
 //////////////////// Car functionality and model:
 
 typedef struct car_t
@@ -272,7 +347,7 @@ typedef struct car_info_t
     entrance_queue_t *e_queue;
     pthread_cond_t *entrance_leave;
     pthread_mutex_t *occupy_mutex;
-} car_info_t;
+} car_management_info_t;
 
 void *car_simulation_loop(void *args);
 
@@ -317,11 +392,10 @@ void entrance_queue_close(entrance_queues_sh_data_t *e_q_sh_data)
     }
 }
 
-void car_leave_entrance(car_info_t *car_info, uint8_t entrance_num)
+void car_leave_entrance(car_management_info_t *car_man_info, uint8_t entrance_num)
 {
-    /* Lock the entrance occupied mutex: */
-    pthread_mutex_unlock(car_info->occupy_mutex);
-    pthread_cond_signal(car_info->entrance_leave);
+    pthread_mutex_unlock(car_man_info->occupy_mutex);
+    pthread_cond_signal(car_man_info->entrance_leave);
 }
 
 /**
@@ -368,12 +442,12 @@ void *manage_entrances_loop(void *args)
         llist_delete_dangling_node(old_next_car_node, NULL);
         
         /* Spin off a thread for it: */
-        car_info_t *car_info = (car_info_t *)malloc(sizeof(car_info_t));
-        car_info->car_node = next_car_node;
-        car_info->e_queue = e_queue;
-        car_info->entrance_leave = &finished;
-        car_info->occupy_mutex = &occupy_mutex;
-        thread_pool_add_request(&car_thread_pool, car_simulation_loop, car_info);
+        car_management_info_t *car_man_info = (car_management_info_t *)malloc(sizeof(car_management_info_t));
+        car_man_info->car_node = next_car_node;
+        car_man_info->e_queue = e_queue;
+        car_man_info->entrance_leave = &finished;
+        car_man_info->occupy_mutex = &occupy_mutex;
+        thread_pool_add_request(&car_thread_pool, car_simulation_loop, car_man_info);
 
         /* Wait for the car thread that was just started to leave the entrance.
            Car thread will hold the mutex until it has left the entrance. */
@@ -463,62 +537,59 @@ void *car_simulation_loop(void *args)
 {
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
 
-    car_info_t *car_info = (car_info_t *)args;
-    node_t *car_node = car_info->car_node;
-    entrance_queues_sh_data_t *e_queues_data = car_info->e_queue->sh_data;
-    uint8_t e_id = car_info->e_queue->entrance_num;
+    car_management_info_t *car_man_info = (car_management_info_t *)args;
+    car_t *car_data = (car_t *)car_man_info->car_node->data;
+    entrance_queues_sh_data_t *e_queues_data = car_man_info->e_queue->sh_data;
+    uint8_t en_id = car_man_info->e_queue->entrance_num;
 
     /* Lock the entrance occupied mutex: */
-    pthread_mutex_lock(car_info->occupy_mutex);
-
-    /* Aquire mutex for the entrance LPS: */
+    pthread_mutex_lock(car_man_info->occupy_mutex);
 
     /* Wait a bit before triggering the LPS: */
-
-    /* Update the LPS license plate field, then trigger LPS cond. var. for the entrance: */
-    pthread_cond_signal(&shm_data->entrances[0].lplate_sensor.lplate_sensor_update_flag);
-
-    /* Car finsihed with the LPS, unlock mutex: */
-    
+    delay_ms(2, time_scale);
+    lplate_sensor_trigger(&shm_data->entrances[en_id].lplate_sensor, car_data->license_plate);
 
     /* Get information from digital sign: */
-    char display = '0';
-        /* Aquire mutex for the sign: */
-
-        /* Wait for sign to update: */
-
-        /* Unlock mutex for the sign: */
+    char display = 'X';
+    info_sign_read(&shm_data->entrances[en_id].info_sign, &display);
 
     /* Respond to information received from sign (if digit given continue, else rejected): */
     if('0' <= display || display <= '9')
     { /* Car allowed. */
+    /* Deviant behaviour (30% chance): */
+        uint8_t level = atoi(display);
+
     /* Wait for boom gate to open: */
+        boom_gate_wait_open(&shm_data->entrances[en_id].bgate);
+
+    /* Car finished with the LPS and ready to enter, unlock occupy mutex.
+       Also, signal that entrance is available to the next car: */
+        car_leave_entrance(car_man_info, en_id);
 
     /* Continue into the car park: */
-        /* Car finished with the LPS and ready to enter, unlock mutex.
-           Also, signal that entrance is available to the next car: */
-        car_leave_entrance(car_info, e_id);
-
-    /* Go to assigned level and trigger level LPS: */
+        /* Go to assigned level and trigger level LPS: */
+        lplate_sensor_trigger(&shm_data->levels[level].lplate_sensor, car_data->license_plate);
 
     /* Stay in car park for a random period of time (between 100-10,000 ms): */
         delay_random_ms(&random_gen_mutex, 100, 10000, time_scale);
 
-    /* Leave after finish parking, triggering level LPS and exit LPS: */ 
-
+    /* Leave after finish parking, triggering level LPS and exit LPS: */
+        lplate_sensor_trigger(&shm_data->entrances[level].lplate_sensor, car_data->license_plate);
+        uint8_t ex_id = random_int(&random_gen_mutex, 0, NUM_EXITS - 1);
+        lplate_sensor_trigger(&shm_data->exits[ex_id].lplate_sensor, car_data->license_plate);
     }
     else
     { /* Car rejected. */
-        car_leave_entrance(car_info, e_id);
+        car_leave_entrance(car_man_info, en_id);
     }
 
     /* Remove car from simulation: */
     pthread_mutex_lock(&car_list_mutex);
-    llist_delete_node(car_list, car_node);
+    llist_delete_node(car_list, car_man_info->car_node);
     pthread_mutex_unlock(&car_list_mutex);
 
     /* Free memory for car info, but not its contents (DO IT 2ND LAST): */
-    free(car_info);
+    free(car_man_info);
 
     /* Signal to car generator that car has finished simulating: */
     pthread_mutex_lock(&cars_sim_ended_mutex);
