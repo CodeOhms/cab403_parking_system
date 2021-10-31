@@ -6,6 +6,20 @@
 #include <string.h>
 #include "shared_memory.h"
 
+//////////////////// Prototypes:
+
+void lplate_sensor_read(license_plate_sensor_t *lplate_sensor, char *lplate);
+
+void boom_gate_admit_one(boom_gate_t *boom_gate);
+
+void boom_gate_open(boom_gate_t *boom_gate);
+
+void boom_gate_close(boom_gate_t *boom_gate);
+
+void info_sign_manage(information_sign_t* info_sign, char display);
+
+//////////////////// End prototypes.
+
 //////////////////// License plate sensor functionality:
 
 /**
@@ -37,14 +51,13 @@ void lplate_sensor_read(license_plate_sensor_t *lplate_sensor, char *lplate)
 
 //////////////////// Boom gate functionality:
 
-void boom_gate_manage(boom_gate_t *boom_gate)
+void boom_gate_admit_one(boom_gate_t *boom_gate)
 {
     // Acquire mutex of boomgate
     pthread_mutex_lock(&boom_gate->bgate_mutex);
 
     // Admit one car
     boom_gate_open(boom_gate);
-    // delay(10);
     boom_gate_close(boom_gate);
 
     /* Unlock mutex: */

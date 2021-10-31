@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 
@@ -67,20 +68,50 @@ typedef struct shared_data_t
     level_t levels[NUM_LEVELS];
 } shared_data_t;
 
+// typedef struct shared_handshake_t
+// {
+//     bool manager_linked;
+//     pthread_mutex_t link_mutex;
+//     pthread_cond_t  link_sig;
+
+//     bool simulator_finished;
+//     pthread_mutex_t fin_mutex;
+//     pthread_cond_t  fin_sig;
+// } shared_handshake_t;
+
+typedef struct shared_handshake_t
+{
+    sem_t manager_linked;
+    sem_t simulator_finished;
+} shared_handshake_t;
+
 /* Structure to manage the shared memory data */
 typedef struct shared_mem_t
 {
     /* File descriptor of shared memory object: */
     int fd;
 
+    /* Name of the shared memory object: */
+    char *name;
+
+    size_t size;
+
     /* Pointer to the shared data structure: */
-    shared_data_t *data;
+    void *data;
 } shared_mem_t;
 
-// const char* shm_name = "PARKING";
-// const size_t shm_size = sizeof(shared_data_t);
-#define shm_name "PARKING"
-#define shm_size sizeof(shared_data_t)
+#define SHM_NAME "PARKING"
+#define SHM_NAME_LENGTH sizeof(SHM_NAME)/sizeof(SHM_NAME[0])
+#define SHM_SIZE sizeof(shared_data_t)
+#define SHM_HANDSHAKE_NAME "LINK"
+#define SHM_HANDSHAKE_NAME_LENGTH sizeof(SHM_HANDSHAKE_NAME)/sizeof(SHM_HANDSHAKE_NAME[0])
+#define SHM_LINK_MANAGER_SIZE sizeof(shared_handshake_t)
+
+/**
+ * @brief Will initialise varaibles in the given shared_mem_t object.
+ * Call before using `shared_mem_attach()`.
+ */
+void shared_mem_data_init(shared_mem_t* shm, size_t size, char *name, size_t name_length);
 
 /**
  * @brief Attach to shared memory. If it already exists from a previous

@@ -36,6 +36,30 @@ char level_lps_current[NUM_LEVELS][7];
 
 
 shared_mem_t shared_mem;
+shared_mem_t handshake_mem;
+
+bool quit;
+sem_t quit_sem;
+
+//////////////////// Quit functionality:
+
+/**
+ * @brief Use this in a thread dedicated to waiting for the simulator to finish.
+ * Once the simulator finishes the program should begin shutdown sequence.
+ * 
+ * @returns NULL.
+ */
+void *wait_sim_close(void *args)
+{
+    shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
+    sem_wait(&handshake_data->simulator_finished);
+
+    quit = true;
+
+    return NULL;
+}
+
+//////////////////// End quit functionality.
 
 // Hash Table
 typedef struct item item_t;
@@ -244,7 +268,6 @@ double calculate_bill(double start_time) {
 
     // Calculate and return bill
     return time_spent * 0.05;
-
 }
 
 // Function for writing to txt file
@@ -268,6 +291,8 @@ void write_bill ( char license_plate[6], float bill){
 void *entrance_monitor(void *args) {
 
     int *gate = (int *)args;
+
+    shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
     
     char license[7];
     int floor_signal;
@@ -275,10 +300,10 @@ void *entrance_monitor(void *args) {
     struct timeval time;
 
     // Start For Loop
-    for(;;){
+    do {
         
         // Wait for License Plate
-        lplate_sensor_read(&shared_mem.data->entrances[*gate].lplate_sensor,license);
+        lplate_sensor_read(&shm_data->entrances[*gate].lplate_sensor, license);
         // Check if there is space in car park
         if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS){
 
@@ -309,11 +334,12 @@ void *entrance_monitor(void *args) {
                 vehicle_counter_total++;
 
         // Signal Boom Gate to Open
-                boom_gate_manage(&shared_mem.data->entrances[*gate].bgate);
-
+                boom_gate_admit_one(&shm_data->entrances[*gate].bgate);
             }
         }
-    }
+    } while(!quit);
+
+    return NULL;
 }
 
 // Function to open Exit Boom Gate
@@ -321,14 +347,16 @@ void *exit_monitor(void *args) {
 
     int *gate = (int *)args;
 
+    shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
+
     char license[7];
     double bill = 0;
 
     // Start For Loop
-    for(;;){
+    do {
 
         // Wait for License
-        lplate_sensor_read(&shared_mem.data->exits[*gate].lplate_sensor,license);
+        lplate_sensor_read(&shm_data->exits[*gate].lplate_sensor,license);
 
         // Get Value of License Plate
         int license_value = htab_find(&vehicle_table, license)->value;
@@ -343,10 +371,11 @@ void *exit_monitor(void *args) {
         write_bill(license, bill);
         
         // Open Gate
-        boom_gate_manage(&shared_mem.data->exits[*gate].bgate); 
+        boom_gate_admit_one(&shm_data->exits[*gate].bgate); 
         
-    }
+    } while(!quit);
 
+    return NULL;
 }
 
 // License Plate Monitor keeps track of vehicles entering on the floor
@@ -355,14 +384,16 @@ void *lp_monitor( void *args) {
 
     int *floor = (int *)args;
 
+    shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
+
     char license[7];
 
     // Start For Loop,
 
-    for(;;){
+    do {
 
         // Update License
-        lplate_sensor_read(&shared_mem.data->levels[*floor].lplate_sensor,license);
+        lplate_sensor_read(&shm_data->levels[*floor].lplate_sensor,license);
         // Get Value of License Plate
         int license_value = htab_find(&vehicle_table, license)->value;
 
@@ -377,13 +408,16 @@ void *lp_monitor( void *args) {
             vehicle_tracker[license_value] = 0;
         }
 
-    }
+    } while(!quit);
 
+    return NULL;
 }
 
 // Function
 int main(void)
 {
+    quit = false;
+
     // Initialise
             // create a hash table with 10 buckets
     size_t buckets = 10;
@@ -392,29 +426,46 @@ int main(void)
     lp_list();
 
         /* Setup shared memory and attach: */
-    //shared_mem_attach(&shared_mem);
+   shared_mem_data_init(&shared_mem, SHM_SIZE, SHM_NAME, SHM_NAME_LENGTH);
+    if(!shared_mem_attach(&shared_mem))
+    {
+        return -1;
+    }
+    shared_mem_data_init(&handshake_mem, SHM_LINK_MANAGER_SIZE, SHM_HANDSHAKE_NAME, SHM_HANDSHAKE_NAME_LENGTH);
+    if(!shared_mem_attach(&handshake_mem))
+    {
+        return -1;
+    }
+
+        /* Notify the simulator that the manager has successfully attached: */
+    shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
+    sem_post(&handshake_data->manager_linked);
+
+    /* Create thread for monitoring running state of sim: */
+    pthread_t quit_thread;
+    pthread_create(&quit_thread, NULL, wait_sim_close, NULL);
 
     // Create Thread for Entrance
-    pthread_t entrance_monitor_thread; 
+    pthread_t entrance_monitor_thread[NUM_ENTRANCES]; 
     for (int i = 0; i < NUM_ENTRANCES; i++){
-        pthread_create(&entrance_monitor_thread, NULL, entrance_monitor, (void *)&i);
+        pthread_create(&entrance_monitor_thread[i], NULL, entrance_monitor, (void *)&i);
     }
 
     // Create Thread for Exit
-    pthread_t exit_monitor_thread;
+    pthread_t exit_monitor_thread[NUM_EXITS];
     for (int i = 0; i < NUM_EXITS; i++){
-        pthread_create(&exit_monitor_thread, NULL, exit_monitor, (void *)&i);
+        pthread_create(&exit_monitor_thread[i], NULL, exit_monitor, (void *)&i);
     }
 
     // Create thread for LP sensor
-    pthread_t lp_monitor_thread;
+    pthread_t lp_monitor_thread[NUM_LEVELS];
     for (int i = 0; i < NUM_LEVELS; i++){
-        pthread_create(&lp_monitor_thread, NULL, lp_monitor, (void *)&i);
+        pthread_create(&lp_monitor_thread[i], NULL, lp_monitor, (void *)&i);
     }
 
     // Displaying Information
 
-    for (;;) {
+    do {
 
         //system("clear");
         // Signs Display
@@ -438,6 +489,21 @@ int main(void)
 
         usleep(50000);
 
-    }
+    } while(!quit);
 
+    /* Shutdown sequence: */
+        /* Join threads: */
+    pthread_join(quit_thread, NULL);
+        /* Entrances: */
+    for (int i = 0; i < NUM_ENTRANCES; i++){
+        pthread_join(entrance_monitor_thread[i], NULL);
+    }
+        /* Exits: */
+    for (int i = 0; i < NUM_EXITS; i++){
+        pthread_join(exit_monitor_thread[i], NULL);
+    }
+        /* LP sensors: */
+    for (int i = 0; i < NUM_LEVELS; i++){
+        pthread_join(lp_monitor_thread[i], NULL);
+    }
 }

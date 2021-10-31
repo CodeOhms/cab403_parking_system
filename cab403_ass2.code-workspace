@@ -18,7 +18,12 @@
 			"string_view": "c",
 			"numbers": "c",
 			"thread": "c",
-			"condition_variable": "c"
+			"condition_variable": "c",
+			"shared_memory.h": "c",
+			"hash_map": "c",
+			"initializer_list": "c",
+			"utility": "c",
+			"valarray": "c"
 		}
 	}
 }
