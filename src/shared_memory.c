@@ -2,7 +2,7 @@
 
 void shared_mem_data_init(shared_mem_t* shm, size_t size, char *name, size_t name_length)
 {
-    shm->size;
+    shm->size = size;
 
     /* Allocate memory for the shared memory data: */
     shm->name = (char *)malloc(name_length);

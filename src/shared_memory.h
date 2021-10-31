@@ -2,9 +2,11 @@
 #define  SHARED_MEMORY_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/mman.h>
+#include <stdlib.h>
 #include <fcntl.h>
 
 #define LICENSE_PLATE_LENGTH 6

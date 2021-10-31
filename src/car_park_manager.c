@@ -290,7 +290,7 @@ void write_bill ( char license_plate[6], float bill){
 // Function to Open Entrence Boom Gate
 void *entrance_monitor(void *args) {
 
-    int *gate = (int *)args;
+    uint8_t gate = *((uint8_t *)args);
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
     
@@ -303,7 +303,7 @@ void *entrance_monitor(void *args) {
     do {
         
         // Wait for License Plate
-        lplate_sensor_read(&shm_data->entrances[*gate].lplate_sensor, license);
+        lplate_sensor_read(&shm_data->entrances[gate].lplate_sensor, license);
         // Check if there is space in car park
         if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS){
 
@@ -334,10 +334,20 @@ void *entrance_monitor(void *args) {
                 vehicle_counter_total++;
 
         // Signal Boom Gate to Open
-                boom_gate_admit_one(&shm_data->entrances[*gate].bgate);
+                boom_gate_admit_one(&shm_data->entrances[gate].bgate);
+            }
+            else
+            {
+                info_sign_update(&shm_data->entrances->info_sign, 'X');
             }
         }
+        else
+        {
+            info_sign_update(&shm_data->entrances->info_sign, 'F');
+        }
     } while(!quit);
+
+    free(args);
 
     return NULL;
 }
@@ -345,7 +355,7 @@ void *entrance_monitor(void *args) {
 // Function to open Exit Boom Gate
 void *exit_monitor(void *args) {
 
-    int *gate = (int *)args;
+    uint8_t ex_id = *((uint8_t *)args);
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
 
@@ -356,10 +366,15 @@ void *exit_monitor(void *args) {
     do {
 
         // Wait for License
-        lplate_sensor_read(&shm_data->exits[*gate].lplate_sensor,license);
+        lplate_sensor_read(&shm_data->exits[ex_id].lplate_sensor, license);
 
         // Get Value of License Plate
-        int license_value = htab_find(&vehicle_table, license)->value;
+        item_t *find_res = htab_find(&vehicle_table, license);
+        if(find_res == NULL)
+        {
+            continue;
+        }
+        int license_value = find_res->value;
 
         // Calculate Bill
         bill = calculate_bill(start_time[license_value]);
@@ -371,9 +386,11 @@ void *exit_monitor(void *args) {
         write_bill(license, bill);
         
         // Open Gate
-        boom_gate_admit_one(&shm_data->exits[*gate].bgate); 
+        boom_gate_admit_one(&shm_data->exits[ex_id].bgate); 
         
     } while(!quit);
+
+    free(args);
 
     return NULL;
 }
@@ -382,7 +399,7 @@ void *exit_monitor(void *args) {
     // Store a 0 value for cars in the park which can be used to display vehicle,
 void *lp_monitor( void *args) {
 
-    int *floor = (int *)args;
+    uint8_t floor = *((uint8_t *)args);
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
 
@@ -394,22 +411,29 @@ void *lp_monitor( void *args) {
     do {
 
         // Update License
-        lplate_sensor_read(&shm_data->levels[*floor].lplate_sensor,license);
+        lplate_sensor_read(&shm_data->levels[floor].lplate_sensor,license);
         // Get Value of License Plate
-        int license_value = htab_find(&vehicle_table, license)->value;
+        item_t *find_res = htab_find(&vehicle_table, license);
+        if(find_res == NULL)
+        {
+            continue;
+        }
+        int license_value = find_res->value;
 
         // Check if vehicle is entering
         if (vehicle_tracker[license_value] == 0) {
-            vehicle_counter_floor[*floor]++;
-            vehicle_tracker[license_value] = *floor;
+            vehicle_counter_floor[floor]++;
+            vehicle_tracker[license_value] = floor;
         }
         // If not entering, must be leaving
         else {
-            vehicle_counter_floor[*floor]--;
+            vehicle_counter_floor[floor]--;
             vehicle_tracker[license_value] = 0;
         }
 
     } while(!quit);
+
+    free(args);
 
     return NULL;
 }
@@ -447,21 +471,37 @@ int main(void)
     pthread_create(&quit_thread, NULL, wait_sim_close, NULL);
 
     // Create Thread for Entrance
-    pthread_t entrance_monitor_thread[NUM_ENTRANCES]; 
-    for (int i = 0; i < NUM_ENTRANCES; i++){
-        pthread_create(&entrance_monitor_thread[i], NULL, entrance_monitor, (void *)&i);
+    pthread_t entrance_monitor_thread[NUM_ENTRANCES];
+    {
+        uint8_t *ids[NUM_ENTRANCES];
+        for (int i = 0; i < NUM_ENTRANCES; i++){
+            ids[i] = (uint8_t *)malloc(sizeof(int));
+            *ids[i] = i;
+            pthread_create(&entrance_monitor_thread[i], NULL, entrance_monitor, (void *)ids[i]);
+        }
     }
 
     // Create Thread for Exit
     pthread_t exit_monitor_thread[NUM_EXITS];
-    for (int i = 0; i < NUM_EXITS; i++){
-        pthread_create(&exit_monitor_thread[i], NULL, exit_monitor, (void *)&i);
+    {
+        uint8_t *ids[NUM_EXITS];
+        for (int i = 0; i < NUM_EXITS; i++){
+            ids[i] = (uint8_t *)malloc(sizeof(int));
+            *ids[i] = i;
+            pthread_create(&exit_monitor_thread[i], NULL, exit_monitor, (void *)ids[i]);
+        }
     }
 
     // Create thread for LP sensor
+    
     pthread_t lp_monitor_thread[NUM_LEVELS];
-    for (int i = 0; i < NUM_LEVELS; i++){
-        pthread_create(&lp_monitor_thread[i], NULL, lp_monitor, (void *)&i);
+    {
+        uint8_t *ids[NUM_LEVELS];
+        for (int i = 0; i < NUM_LEVELS; i++){
+            ids[i] = (uint8_t *)malloc(sizeof(int));
+            *ids[i] = i;
+            pthread_create(&lp_monitor_thread[i], NULL, lp_monitor, (void *)ids[i]);
+        }
     }
 
     // Displaying Information

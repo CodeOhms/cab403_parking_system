@@ -106,7 +106,7 @@ void destroy_shared_object( shared_mem_t* shm ) {
     shm->data = NULL;
 }
 
-void shm_data_init(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_attr)
+int shm_data_init(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_attr)
 {
     /* Create shared memory objects and attach: */
     shared_mem_data_init(&shared_mem, SHM_SIZE, SHM_NAME, SHM_NAME_LENGTH);
@@ -131,8 +131,8 @@ void shm_data_init(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_att
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
 
     /* Initialise shared memory variables: */
-    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
-    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
+    pthread_mutexattr_setpshared(mutex_attr, PTHREAD_PROCESS_SHARED);
+    pthread_condattr_setpshared(cond_attr, PTHREAD_PROCESS_SHARED);
         /* Handshake: */
     // pthread_mutex_init(&handshake_data->link_mutex, &mutex_attr);
     // pthread_cond_init(&handshake_data->link_sig, &cond_attr);
@@ -145,35 +145,37 @@ void shm_data_init(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_att
     for(uint8_t i = 0; i < NUM_ENTRANCES; ++i)
     {
             /* Boom gate: */
-        pthread_mutex_init(&shm_data->entrances[i].bgate.bgate_mutex, &mutex_attr);
-        pthread_cond_init(&shm_data->entrances[i].bgate.bgate_update_flag, &cond_attr);
+        pthread_mutex_init(&shm_data->entrances[i].bgate.bgate_mutex, mutex_attr);
+        pthread_cond_init(&shm_data->entrances[i].bgate.bgate_update_flag, cond_attr);
 
             /* Information sign: */
-        pthread_mutex_init(&shm_data->entrances[i].info_sign.info_sign_mutex, &mutex_attr);
-        pthread_cond_init(&shm_data->entrances[i].info_sign.info_sign_update_flag, &cond_attr);
+        pthread_mutex_init(&shm_data->entrances[i].info_sign.info_sign_mutex, mutex_attr);
+        pthread_cond_init(&shm_data->entrances[i].info_sign.info_sign_update_flag, cond_attr);
         
             /* License plate sensor: */
-        pthread_mutex_init(&shm_data->entrances[i].lplate_sensor.lplate_sensor_mutex, &mutex_attr);
-        pthread_cond_init(&shm_data->entrances[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
+        pthread_mutex_init(&shm_data->entrances[i].lplate_sensor.lplate_sensor_mutex, mutex_attr);
+        pthread_cond_init(&shm_data->entrances[i].lplate_sensor.lplate_sensor_update_flag, cond_attr);
     }
         /* Exits: */
     for(uint8_t i = 0; i < NUM_EXITS; ++i)
     {
             /* Boom gate: */
-        pthread_mutex_init(&shm_data->exits[i].bgate.bgate_mutex, &mutex_attr);
-        pthread_cond_init(&shm_data->exits[i].bgate.bgate_update_flag, &cond_attr);
+        pthread_mutex_init(&shm_data->exits[i].bgate.bgate_mutex, mutex_attr);
+        pthread_cond_init(&shm_data->exits[i].bgate.bgate_update_flag, cond_attr);
         
             /* License plate sensor: */
-        pthread_mutex_init(&shm_data->exits[i].lplate_sensor.lplate_sensor_mutex, &mutex_attr);
-        pthread_cond_init(&shm_data->exits[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
+        pthread_mutex_init(&shm_data->exits[i].lplate_sensor.lplate_sensor_mutex, mutex_attr);
+        pthread_cond_init(&shm_data->exits[i].lplate_sensor.lplate_sensor_update_flag, cond_attr);
     }
         /* Levels: */
     for(uint8_t i = 0; i < NUM_LEVELS; ++i)
     {   
             /* License plate sensor: */
-        pthread_mutex_init(&shm_data->levels[i].lplate_sensor.lplate_sensor_mutex, &mutex_attr);
-        pthread_cond_init(&shm_data->levels[i].lplate_sensor.lplate_sensor_update_flag, &cond_attr);
+        pthread_mutex_init(&shm_data->levels[i].lplate_sensor.lplate_sensor_mutex, mutex_attr);
+        pthread_cond_init(&shm_data->levels[i].lplate_sensor.lplate_sensor_update_flag, cond_attr);
     }
+
+    return 0;
 }
 
 void shm_data_close(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_attr)
@@ -182,8 +184,8 @@ void shm_data_close(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_at
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
     
     /* Destroy mutex and condition attribute variables: */
-    pthread_mutexattr_destroy(&mutex_attr);
-    pthread_condattr_destroy(&cond_attr);
+    pthread_mutexattr_destroy(mutex_attr);
+    pthread_condattr_destroy(cond_attr);
 
         /* Destroy mutexes, condition variables and semaphores: */
             /* Handshake: */
@@ -557,7 +559,7 @@ void *car_simulation_loop(void *args)
     if('0' <= display || display <= '9')
     { /* Car allowed. */
     /* Deviant behaviour (30% chance): */
-        uint8_t level = atoi(display);
+        uint8_t level = atoi(&display);
 
     /* Wait for boom gate to open: */
         boom_gate_wait_open(&shm_data->entrances[en_id].bgate);
@@ -656,7 +658,13 @@ int main(void)
     /* Initialise shared memory: */
     pthread_mutexattr_t mutex_attr;
     pthread_condattr_t cond_attr;
-    shm_data_init(&mutex_attr, &cond_attr);
+    {
+        int ret = shm_data_init(&mutex_attr, &cond_attr);
+        if(ret != 0)
+        {
+            return ret;
+        }
+    }
 
     /* Wait for the manager to open: */
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;

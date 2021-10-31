@@ -43,7 +43,7 @@ char random_digit(pthread_mutex_t *mutex)
 
 void delay_ms(unsigned int t, unsigned int time_scale)
 {
-    unsigned int us = us * 1000 * time_scale;
+    unsigned int us = t * 1000 * time_scale;
     usleep(us);
 }
 
