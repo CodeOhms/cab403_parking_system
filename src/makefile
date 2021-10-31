@@ -2,8 +2,8 @@ CC = gcc
 CFLAGS = -g -I./include -Wall -pedantic # Show all reasonable warnings
 LDFLAGS = -lrt -pthread
 BUILD_DIR ?= ./build
-OBJECTS = shared_memory.o linked_list.o thread_pool.o car_park_simulator.o # Object files for building simulator
-OBJECTS2 = shared_memory.o car_park_manager.o # Object files for building manager
+OBJECTS = shared_memory.o linked_list.o htab.o thread_pool.o car_park_simulator.o # Object files for building simulator
+OBJECTS2 = shared_memory.o htab.o car_park_manager.o # Object files for building manager
 TARGET = car_park_simulator
 TARGET2 = car_park_manager
 
