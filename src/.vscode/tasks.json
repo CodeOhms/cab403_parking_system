@@ -24,7 +24,7 @@
         },
         {
             "type": "cppbuild",
-            "label": "Run makefile",
+            "label": "Make all",
             "command": "/usr/bin/make",
             "args": [
                 "all"
@@ -33,7 +33,43 @@
                 "cwd": "${workspaceFolder}"
             },
             "group": "build"
-        }
+        },
+        {
+            "label": "Build simulator",
+            "command": "make",
+            "args": ["car_park_simulator"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "Build manager",
+            "command": "make",
+            "args": ["car_park_manager"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "Run simulator",
+            "command": "car_park_simulator.out",
+            "args": [""],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "Build all",
+            "dependsOn": ["Build simulator", "Build manager"]
+        },
+        {
+            "label": "Clean",
+            "command": "make",
+            "args": ["clean"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
     ],
     "version": "2.0.0"
 }
