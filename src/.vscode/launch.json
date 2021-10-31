@@ -24,6 +24,27 @@
             ],
             "preLaunchTask": "Run makefile",
             "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Build and run manager.",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/car_park_manager.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Run makefile",
+            "miDebuggerPath": "/usr/bin/gdb"
         }
     ]
 }
