@@ -25,9 +25,15 @@ int vehicle_tracker[100];
 int license_plate_length = 0;
 double start_time[100];
 
+// Display 
 int revenue = 0;
 int vehicle_counter_floor[NUM_LEVELS];
 int vehicle_counter_total;
+
+char entrance_lps_current[NUM_ENTRANCES][7];
+char exit_lps_current[NUM_EXITS][7];
+char level_lps_current[NUM_LEVELS][7];
+
 
 shared_mem_t shared_mem;
 
@@ -262,8 +268,6 @@ void write_bill ( char license_plate[6], float bill){
 void *entrance_monitor(void *args) {
 
     int *gate = (int *)args;
-
-    printf("Boom Gate Entrance Created\n");
     
     char license[7];
     int floor_signal;
@@ -274,7 +278,7 @@ void *entrance_monitor(void *args) {
     for(;;){
         
         // Wait for License Plate
-        lplate_sensor_read(&shared_mem.data->entrances[gate].lplate_sensor,license);
+        lplate_sensor_read(&shared_mem.data->entrances[*gate].lplate_sensor,license);
         // Check if there is space in car park
         if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS){
 
@@ -305,11 +309,7 @@ void *entrance_monitor(void *args) {
                 vehicle_counter_total++;
 
         // Signal Boom Gate to Open
-            // Acquire Mutex
-
-            // Unlock Mutex
-
-            // Update
+                boom_gate_manage(&shared_mem.data->entrances[*gate].bgate);
 
             }
         }
@@ -320,7 +320,6 @@ void *entrance_monitor(void *args) {
 void *exit_monitor(void *args) {
 
     int *gate = (int *)args;
-    printf("Boomgate Exit Created\n");
 
     char license[7];
     double bill = 0;
@@ -329,7 +328,7 @@ void *exit_monitor(void *args) {
     for(;;){
 
         // Wait for License
-        lplate_sensor_read(&shared_mem.data->exits[gate].lplate_sensor,license);
+        lplate_sensor_read(&shared_mem.data->exits[*gate].lplate_sensor,license);
 
         // Get Value of License Plate
         int license_value = htab_find(&vehicle_table, license)->value;
@@ -344,13 +343,8 @@ void *exit_monitor(void *args) {
         write_bill(license, bill);
         
         // Open Gate
-            // Acquire Mutex
-
-            // Unlock Mutex
-
-            // Update
-
-
+        boom_gate_manage(&shared_mem.data->exits[*gate].bgate); 
+        
     }
 
 }
@@ -360,28 +354,26 @@ void *exit_monitor(void *args) {
 void *lp_monitor( void *args) {
 
     int *floor = (int *)args;
-    printf("License Plate Sensor Created \n");
 
     char license[7];
 
-    // Start For Loop, license)->value;
+    // Start For Loop,
 
     for(;;){
 
         // Update License
-        lplate_sensor_read(&shared_mem.data->levels[floor].lplate_sensor,license);
-
+        lplate_sensor_read(&shared_mem.data->levels[*floor].lplate_sensor,license);
         // Get Value of License Plate
         int license_value = htab_find(&vehicle_table, license)->value;
 
         // Check if vehicle is entering
         if (vehicle_tracker[license_value] == 0) {
-            vehicle_counter_floor[floor]++;
-            vehicle_tracker[license_value] = floor;
+            vehicle_counter_floor[*floor]++;
+            vehicle_tracker[license_value] = *floor;
         }
         // If not entering, must be leaving
         else {
-            vehicle_counter_floor[floor]--;
+            vehicle_counter_floor[*floor]--;
             vehicle_tracker[license_value] = 0;
         }
 
@@ -400,30 +392,52 @@ int main(void)
     lp_list();
 
         /* Setup shared memory and attach: */
-    shared_mem_attach(&shared_mem);
     //shared_mem_attach(&shared_mem);
 
-    // Create Thread for Entrance   
+    // Create Thread for Entrance
+    pthread_t entrance_monitor_thread; 
     for (int i = 0; i < NUM_ENTRANCES; i++){
-        pthread_t entrance_monitor_thread;
         pthread_create(&entrance_monitor_thread, NULL, entrance_monitor, (void *)&i);
     }
 
     // Create Thread for Exit
+    pthread_t exit_monitor_thread;
     for (int i = 0; i < NUM_EXITS; i++){
-        pthread_t exit_monitor_thread;
         pthread_create(&exit_monitor_thread, NULL, exit_monitor, (void *)&i);
     }
 
     // Create thread for LP sensor
+    pthread_t lp_monitor_thread;
     for (int i = 0; i < NUM_LEVELS; i++){
-        pthread_t lp_monitor_thread;
         pthread_create(&lp_monitor_thread, NULL, lp_monitor, (void *)&i);
     }
+
     // Displaying Information
+
+    for (;;) {
+
+        //system("clear");
         // Signs Display
+        printf("Car Park\nCapacity: %d/%d\n", vehicle_counter_total,NUM_LEVELS*FLOOR_CAPACITY);
 
-        // Display current status of parking 
+        for (int i = 0; i < NUM_LEVELS; i++){
+            printf("Level: %d \t| License Plate Reader: %s\t| Capacity: %d/%d\n",i + 1, level_lps_current[i],vehicle_counter_floor[i],FLOOR_CAPACITY);
+        }
+        printf("\n");
 
+        for (int i = 0; i < NUM_ENTRANCES; i++){
+            printf("Entrance: %d \t| License Plate Reader: %s\t| Sign\n",i + 1, entrance_lps_current[i]);
+        }
+        printf("\n");
+
+        for (int i = 0; i < NUM_EXITS; i++){
+            printf("Exit: %d \t| License Plate Reader: %s\t| Sign\n",i + 1, exit_lps_current[i]);
+        }
+
+        // Display current status of parking
+
+        usleep(50000);
+
+    }
 
 }
