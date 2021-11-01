@@ -288,8 +288,12 @@ int main(void)
         return -1;
     }
 
-        /* Notify the simulator that the manager has successfully attached: */
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
+
+    /* Wait for the simulator to signal that the shared memory is ready: */
+    sem_wait(&handshake_data->shm_mem_ready);
+
+        /* Notify the simulator that the manager has successfully attached and is ready to start: */
     sem_post(&handshake_data->manager_linked);
 
     /* Create thread for monitoring running state of sim: */

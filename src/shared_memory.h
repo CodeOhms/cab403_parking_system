@@ -83,6 +83,7 @@ typedef struct shared_data_t
 
 typedef struct shared_handshake_t
 {
+    sem_t shm_mem_ready;
     sem_t manager_linked;
     sem_t simulator_finished;
 } shared_handshake_t;
