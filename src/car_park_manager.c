@@ -25,7 +25,7 @@ int vehicle_tracker[TOTAL_CAPACITY];
 double start_time[TOTAL_CAPACITY];
 
 // Display 
-int revenue = 0;
+double revenue = 0;
 int vehicle_counter_floor[NUM_LEVELS];
 int vehicle_counter_total;
 
@@ -208,9 +208,10 @@ void *exit_monitor(void *args) {
         write_bill(license, bill);
         
         // Open Gate
-        boom_gate_admit_one(&shm_data->exits[ex_id].bgate); 
+        boom_gate_admit_one(&shm_data->exits[ex_id].bgate);
 
-        --vehicle_counter_total;
+        // Decrease Counter by 1
+        vehicle_counter_total--;
         
     } while(!quit);
 
@@ -337,7 +338,7 @@ int main(void)
 
         system("clear");
         // Signs Display
-        printf("Car Park\nCapacity: %d/%d\n", vehicle_counter_total, NUM_LEVELS*FLOOR_CAPACITY);
+        printf("Car Park\nCapacity: %d/%d\nRevenue: $%d\n", vehicle_counter_total, NUM_LEVELS*FLOOR_CAPACITY, revenue);
 
         for (int i = 0; i < NUM_LEVELS; i++){
             printf("Level: %d \t| License Plate Reader: %s\t| Capacity: %d/%d\n", i + 1, level_lps_current[i], vehicle_counter_floor[i], FLOOR_CAPACITY);
@@ -345,12 +346,12 @@ int main(void)
         printf("\n");
 
         for (int i = 0; i < NUM_ENTRANCES; i++){
-            printf("Entrance: %d \t| License Plate Reader: %s\t| Sign\n", i + 1, entrance_lps_current[i]);
+            printf("Entrance: %d \t| License Plate Reader: %s\t| Sign: %c\n", i + 1, entrance_lps_current[i],info_sign.display);
         }
         printf("\n");
 
         for (int i = 0; i < NUM_EXITS; i++){
-            printf("Exit: %d \t| License Plate Reader: %s\t| Sign\n", i + 1, exit_lps_current[i]);
+            printf("Exit: %d \t| License Plate Reader: %s\n", i + 1, exit_lps_current[i]);
         }
 
         fflush(stdout);
