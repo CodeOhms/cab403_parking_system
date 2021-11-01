@@ -3,6 +3,13 @@
 
 #include <unistd.h>
 #include <pthread.h>
+#include <stdio.h>
+#include "htab.h"
+#include "shared_memory.h"
+
+#define FLOOR_CAPACITY 20
+#define NUM_LEVELS 5
+#define TOTAL_CAPACITY FLOOR_CAPACITY*NUM_LEVELS
 
 //////////////////// Randomisation functionality:
 
@@ -57,5 +64,32 @@ void delay_random_ms(pthread_mutex_t *mutex, unsigned int range_min, unsigned in
 }
 
 //////////////////// End delay functionality.
+
+//////////////////// File I/O functionality:
+
+// Setup License plate for reading
+void lp_list ( htab_t *htable, char auth_lplates[][LICENSE_PLATE_LENGTH + 1] ) {
+
+    FILE *plate = fopen("plates.txt", "r");
+
+    const unsigned MAX_LENGTH = 256;
+    char buffer[LICENSE_PLATE_LENGTH + 1];
+
+    /* Each line contains one license plate string: */
+    size_t line;
+
+    // Assign authorised license plates to Hash Table
+    while (fgets(buffer, MAX_LENGTH, plate)) {
+        strcpy(auth_lplates[line], buffer);
+        auth_lplates[line][LICENSE_PLATE_LENGTH] = '\0';
+        htab_add(htable, auth_lplates[line], line+1);
+        line++;
+    }
+
+    // close the file
+    fclose(plate);
+}
+
+//////////////////// End file I/O functionality.
 
 #endif //UTILS_H

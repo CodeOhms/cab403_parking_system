@@ -10,7 +10,6 @@ void shared_mem_data_init(shared_mem_t* shm, size_t size, char *name, size_t nam
 
     /* Copy variables: */
     strcpy(shm->name, name);
-    shm->size = size;
 }
 
 bool shared_mem_attach(shared_mem_t* shm)

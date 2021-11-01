@@ -10,11 +10,15 @@
 #include "linked_list.h"
 #include "thread_pool.h"
 
+#define NUM_BUCKETS 100
+
 bool quit;
 sem_t quit_sem;
 shared_mem_t shared_mem;
 shared_mem_t handshake_mem;
 thread_pool_t car_thread_pool;
+htab_t auth_vehicle_plates_htab;
+char auth_lplates[TOTAL_CAPACITY][LICENSE_PLATE_LENGTH + 1];
 pthread_mutex_t random_gen_mutex;
 unsigned int time_scale = 1;
 
@@ -482,10 +486,22 @@ void generate_license_plate(char *lplate)
 void generate_unique_license_plate(char *lplate)
 {
     /* Ensure car doesn't currently exist (no license plate duplicates): */
-    generate_license_plate(lplate);
-    while(llist_find(car_list, lplate) != NULL)
+    if(random_int(&random_gen_mutex, 0, 1) == 0)
     {
-        generate_license_plate(lplate);
+        do
+        {
+            generate_license_plate(lplate);
+        } while (llist_find(car_list, lplate) != NULL);
+    }
+    else
+    {
+        item_t *auth_car;
+        do
+        {
+            generate_license_plate(lplate);
+            auth_car = htab_bucket(&auth_vehicle_plates_htab, lplate);
+        } while (auth_car == NULL);
+        strcpy(lplate, auth_car->key);
     }
 }
 
@@ -655,6 +671,9 @@ int main(void)
 
     random_init(&random_gen_mutex, time(0));
 
+    htab_init(&auth_vehicle_plates_htab, NUM_BUCKETS);
+    lp_list(&auth_vehicle_plates_htab, auth_lplates);
+
     /* Initialise shared memory: */
     pthread_mutexattr_t mutex_attr;
     pthread_condattr_t cond_attr;
@@ -668,7 +687,7 @@ int main(void)
 
     /* Wait for the manager to open: */
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
-    wait_for_manager(handshake_data);
+    wait_for_manager(&handshake_data);
 
     /* Initialise threading: */
         /* Initialise variables needed for threads: */
@@ -719,6 +738,8 @@ int main(void)
     
     destroy_shared_object(&shared_mem);
     destroy_shared_object(&handshake_mem);
+
+    htab_destroy(&auth_vehicle_plates_htab);
 
     random_close(&random_gen_mutex);
     sem_destroy(&quit_sem);

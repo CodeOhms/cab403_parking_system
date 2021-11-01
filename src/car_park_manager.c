@@ -17,23 +17,21 @@
 #include "thread_pool.h"
 #include "manage_hardware.h"
 
-#define FLOOR_CAPACITY 20
-#define NUM_LEVELS 5
+#define FPS 50
 
 // Create variable
-char license_plate[100][7];
-int vehicle_tracker[100];
-int license_plate_length = 0;
-double start_time[100];
+char auth_lplates[TOTAL_CAPACITY][LICENSE_PLATE_LENGTH + 1];
+int vehicle_tracker[TOTAL_CAPACITY];
+double start_time[TOTAL_CAPACITY];
 
 // Display 
 int revenue = 0;
 int vehicle_counter_floor[NUM_LEVELS];
 int vehicle_counter_total;
 
-char entrance_lps_current[NUM_ENTRANCES][7];
-char exit_lps_current[NUM_EXITS][7];
-char level_lps_current[NUM_LEVELS][7];
+char entrance_lps_current[NUM_ENTRANCES][LICENSE_PLATE_LENGTH + 1];
+char exit_lps_current[NUM_EXITS][LICENSE_PLATE_LENGTH + 1];
+char level_lps_current[NUM_LEVELS][LICENSE_PLATE_LENGTH + 1];
 
 shared_mem_t shared_mem;
 shared_mem_t handshake_mem;
@@ -63,46 +61,18 @@ void *wait_sim_close(void *args)
 
 //////////////////// End quit functionality.
 
-// Setup License plate for reading
-void lp_list ( void ) {
-
-    FILE *plate = fopen("plates.txt", "r");
-
-    const unsigned MAX_LENGTH = 256;
-    char buffer[7];
-
-    // Assign Characters to Hash Table
-    while (fgets(buffer, MAX_LENGTH, plate)) {
-
-        for (int i = 0; i < 6; i++) {
-        license_plate[license_plate_length][i] = buffer[i];
-        }
-        license_plate[license_plate_length][6] = '\0';
-
-        htab_add(&vehicle_table, license_plate[license_plate_length], license_plate_length+1);
-
-        license_plate_length++;
-
-
-    }
-
-    // close the file
-    fclose(plate);
-
-}
-
 // Function for Scanning For license Plate
 int lp_scan(char license[6]){
 
         // Check if characters match
         if(htab_find(&vehicle_table, license))
         {
-            printf("Match Found \n");
+            // printf("Match Found \n");
             return 1;
         }
 
 
-    printf("No Match \n");
+    // printf("No Match \n");
     return 0;
 }
 
@@ -145,7 +115,7 @@ void *entrance_monitor(void *args) {
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
     
-    char license[7];
+    char license[LICENSE_PLATE_LENGTH + 1];
     int floor_signal;
 
     struct timeval time;
@@ -210,7 +180,7 @@ void *exit_monitor(void *args) {
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
 
-    char license[7];
+    char license[LICENSE_PLATE_LENGTH + 1];
     double bill = 0;
 
     // Start For Loop
@@ -296,13 +266,16 @@ int main(void)
 
     // Initialise
             // create a hash table with 10 buckets
-    size_t buckets = 10;
-    htab_init(&vehicle_table, buckets);
+    size_t num_buckets = 10;
+    if(!htab_init(&vehicle_table, num_buckets))
+    {
+        return -1;
+    }
         // Create License Plate Array
-    lp_list();
+    lp_list(&vehicle_table, auth_lplates);
 
         /* Setup shared memory and attach: */
-   shared_mem_data_init(&shared_mem, SHM_SIZE, SHM_NAME, SHM_NAME_LENGTH);
+    shared_mem_data_init(&shared_mem, SHM_SIZE, SHM_NAME, SHM_NAME_LENGTH);
     if(!shared_mem_attach(&shared_mem))
     {
         return -1;
@@ -361,25 +334,23 @@ int main(void)
 
         system("clear");
         // Signs Display
-        printf("Car Park\nCapacity: %d/%d\n", vehicle_counter_total,NUM_LEVELS*FLOOR_CAPACITY);
+        printf("Car Park\nCapacity: %d/%d\n", vehicle_counter_total, NUM_LEVELS*FLOOR_CAPACITY);
 
         for (int i = 0; i < NUM_LEVELS; i++){
-            printf("Level: %d \t| License Plate Reader: %s\t| Capacity: %d/%d\n",i + 1, level_lps_current[i],vehicle_counter_floor[i],FLOOR_CAPACITY);
+            printf("Level: %d \t| License Plate Reader: %s\t| Capacity: %d/%d\n", i + 1, level_lps_current[i], vehicle_counter_floor[i], FLOOR_CAPACITY);
         }
         printf("\n");
 
         for (int i = 0; i < NUM_ENTRANCES; i++){
-            printf("Entrance: %d \t| License Plate Reader: %s\t| Sign\n",i + 1, entrance_lps_current[i]);
+            printf("Entrance: %d \t| License Plate Reader: %s\t| Sign\n", i + 1, entrance_lps_current[i]);
         }
         printf("\n");
 
         for (int i = 0; i < NUM_EXITS; i++){
-            printf("Exit: %d \t| License Plate Reader: %s\t| Sign\n",i + 1, exit_lps_current[i]);
+            printf("Exit: %d \t| License Plate Reader: %s\t| Sign\n", i + 1, exit_lps_current[i]);
         }
 
-        // Display current status of parking
-
-        usleep(50000);
+        delay_ms(1/FPS * 1000 * 1000, 1);
 
     } while(!quit);
 
