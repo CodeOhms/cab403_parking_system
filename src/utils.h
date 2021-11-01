@@ -7,10 +7,6 @@
 #include "htab.h"
 #include "shared_memory.h"
 
-#define FLOOR_CAPACITY 20
-#define NUM_LEVELS 5
-#define TOTAL_CAPACITY FLOOR_CAPACITY*NUM_LEVELS
-
 //////////////////// Randomisation functionality:
 
 void random_init(pthread_mutex_t *mutex, unsigned int seed)

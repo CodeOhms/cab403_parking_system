@@ -313,6 +313,7 @@ void lplate_sensor_trigger(license_plate_sensor_t *lps, char* lplate)
 {
     pthread_mutex_lock(&lps->lplate_sensor_mutex);
     strcpy(lps->license_plate, lplate);
+    pthread_mutex_unlock(&lps->lplate_sensor_mutex);
     pthread_cond_signal(&lps->lplate_sensor_update_flag);
 }
 
@@ -591,7 +592,6 @@ void *car_simulation_loop(void *args)
         delay_random_ms(&random_gen_mutex, 100, 10000, time_scale);
 
     /* Leave after finish parking, triggering level LPS and exit LPS: */
-        lplate_sensor_trigger(&shm_data->entrances[level].lplate_sensor, car_data->license_plate);
         uint8_t ex_id = random_int(&random_gen_mutex, 0, NUM_EXITS - 1);
         lplate_sensor_trigger(&shm_data->exits[ex_id].lplate_sensor, car_data->license_plate);
     }
@@ -622,7 +622,7 @@ void *generate_cars_loop(void *args)
     entrance_queues_sh_data_t *e_q_sh_data = (entrance_queues_sh_data_t *)args;
 
     // TODO: have ability to limit number of cars in the simulation from cmd line:
-    size_t cars_to_sim = 3;
+    size_t cars_to_sim = 20;
     size_t cars_sim_started = 0;
     cars_sim_ended = 0;
     

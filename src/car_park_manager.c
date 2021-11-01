@@ -17,7 +17,7 @@
 #include "thread_pool.h"
 #include "manage_hardware.h"
 
-#define FPS 50
+#define FPS 1
 
 // Create variable
 char auth_lplates[TOTAL_CAPACITY][LICENSE_PLATE_LENGTH + 1];
@@ -112,6 +112,7 @@ void write_bill ( char license_plate[6], float bill){
 void *entrance_monitor(void *args) {
 
     uint8_t gate = *((uint8_t *)args);
+    free(args);
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
     
@@ -125,7 +126,7 @@ void *entrance_monitor(void *args) {
         
         // Wait for License Plate
         lplate_sensor_read(&shm_data->entrances[gate].lplate_sensor, license);
-        strcpy(entrance_lps_current[floor],license);
+        strcpy(entrance_lps_current[gate],license);
         // Check if there is space in car park
         if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS){
 
@@ -169,8 +170,6 @@ void *entrance_monitor(void *args) {
         }
     } while(!quit);
 
-    free(args);
-
     return NULL;
 }
 
@@ -178,6 +177,7 @@ void *entrance_monitor(void *args) {
 void *exit_monitor(void *args) {
 
     uint8_t ex_id = *((uint8_t *)args);
+    free(args);
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
 
@@ -189,7 +189,7 @@ void *exit_monitor(void *args) {
 
         // Wait for License
         lplate_sensor_read(&shm_data->exits[ex_id].lplate_sensor, license);
-        strcpy(exit_lps_current[floor],license);
+        strcpy(exit_lps_current[ex_id],license);
         // Get Value of License Plate
         item_t *find_res = htab_find(&vehicle_table, license);
         if(find_res == NULL)
@@ -212,8 +212,6 @@ void *exit_monitor(void *args) {
         
     } while(!quit);
 
-    free(args);
-
     return NULL;
 }
 
@@ -222,6 +220,7 @@ void *exit_monitor(void *args) {
 void *lp_monitor( void *args) {
 
     uint8_t floor = *((uint8_t *)args);
+    free(args);
 
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
 
@@ -256,8 +255,6 @@ void *lp_monitor( void *args) {
 
     } while(!quit);
 
-    free(args);
-
     return NULL;
 }
 
@@ -267,8 +264,8 @@ int main(void)
     quit = false;
 
     // Initialise
-            // create a hash table with 10 buckets
-    size_t num_buckets = 10;
+            // create a hash table with 100 buckets
+    size_t num_buckets = 100;
     if(!htab_init(&vehicle_table, num_buckets))
     {
         return -1;
@@ -301,38 +298,30 @@ int main(void)
     pthread_create(&quit_thread, NULL, wait_sim_close, NULL);
 
     // Create Thread for Entrance
+    uint8_t *ids;
     pthread_t entrance_monitor_thread[NUM_ENTRANCES];
-    {
-        uint8_t *ids[NUM_ENTRANCES];
-        for (int i = 0; i < NUM_ENTRANCES; i++){
-            ids[i] = (uint8_t *)malloc(sizeof(int));
-            *ids[i] = i;
-            pthread_create(&entrance_monitor_thread[i], NULL, entrance_monitor, (void *)ids[i]);
-        }
+    for (uint8_t i = 0; i < NUM_ENTRANCES; i++){
+        ids = (uint8_t *)malloc(sizeof(uint8_t));
+        *ids = i;
+        pthread_create(&entrance_monitor_thread[i], NULL, entrance_monitor, (void *)ids);
     }
 
     // Create Thread for Exit
     pthread_t exit_monitor_thread[NUM_EXITS];
-    {
-        uint8_t *ids[NUM_EXITS];
-        for (int i = 0; i < NUM_EXITS; i++){
-            ids[i] = (uint8_t *)malloc(sizeof(int));
-            *ids[i] = i;
-            pthread_create(&exit_monitor_thread[i], NULL, exit_monitor, (void *)ids[i]);
-        }
+    for (uint8_t i = 0; i < NUM_EXITS; i++){
+        ids = (uint8_t *)malloc(sizeof(uint8_t));
+        *ids = i;
+        pthread_create(&exit_monitor_thread[i], NULL, exit_monitor, (void *)ids);
     }
 
     // Create thread for LP sensor
-    
     pthread_t lp_monitor_thread[NUM_LEVELS];
-    {
-        uint8_t *ids[NUM_LEVELS];
-        for (int i = 0; i < NUM_LEVELS; i++){
-            ids[i] = (uint8_t *)malloc(sizeof(int));
-            *ids[i] = i;
-            pthread_create(&lp_monitor_thread[i], NULL, lp_monitor, (void *)ids[i]);
-        }
+    for (uint8_t i = 0; i < NUM_LEVELS; i++){
+        ids = (uint8_t *)malloc(sizeof(uint8_t));
+        *ids = i;
+        pthread_create(&lp_monitor_thread[i], NULL, lp_monitor, (void *)ids);
     }
+    ids = NULL;
 
     // Displaying Information
 
@@ -358,7 +347,7 @@ int main(void)
         }
 
         fflush(stdout);
-        delay_ms(1/FPS * 1000 * 1000, 1);
+        delay_ms(1/FPS * 1000, 1);
 
     } while(!quit);
 

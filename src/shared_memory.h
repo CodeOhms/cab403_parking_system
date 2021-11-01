@@ -13,6 +13,8 @@
 #define NUM_ENTRANCES 5
 #define NUM_EXITS 5
 #define NUM_LEVELS 5
+#define FLOOR_CAPACITY 20
+#define TOTAL_CAPACITY FLOOR_CAPACITY*NUM_LEVELS
 
 typedef struct license_plate_sensor_t
 {
@@ -69,17 +71,6 @@ typedef struct shared_data_t
     exit_t exits[NUM_EXITS];
     level_t levels[NUM_LEVELS];
 } shared_data_t;
-
-// typedef struct shared_handshake_t
-// {
-//     bool manager_linked;
-//     pthread_mutex_t link_mutex;
-//     pthread_cond_t  link_sig;
-
-//     bool simulator_finished;
-//     pthread_mutex_t fin_mutex;
-//     pthread_cond_t  fin_sig;
-// } shared_handshake_t;
 
 typedef struct shared_handshake_t
 {
