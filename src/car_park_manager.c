@@ -52,7 +52,7 @@ sem_t quit_sem;
 void *wait_sim_close(void *args)
 {
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
-    sem_wait(&handshake_data->simulator_finished);
+    sem_wait(&handshake_data->simulator_closing);
 
     quit = true;
 
@@ -62,7 +62,7 @@ void *wait_sim_close(void *args)
 //////////////////// End quit functionality.
 
 // Function for Scanning For license Plate
-int lp_scan(char license[6]){
+int lp_scan(char license[LICENSE_PLATE_LENGTH + 1]){
 
         // Check if characters match
         if(htab_find(&vehicle_table, license))
@@ -126,15 +126,19 @@ void *entrance_monitor(void *args) {
         
         // Wait for License Plate
         lplate_sensor_read(&shm_data->entrances[gate].lplate_sensor, license);
-        strcpy(entrance_lps_current[gate],license);
+        strcpy(entrance_lps_current[gate], license);
         // Check if there is space in car park
-        if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS){
+        if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS) {
 
         // Check if license plate is on list
-            if (lp_scan(license) == 1) {
+            item_t *auth_car = htab_find(&vehicle_table, license);
+            if(auth_car == NULL)
+            { /* No match, not authorised. */
+                info_sign_update(&shm_data->entrances[gate].info_sign, 'X');
+                continue;
+            }
 
-                // Get Value of License Plate
-                int license_value = htab_find(&vehicle_table, license)->value;
+            int license_value = auth_car->value;
 
         // Scan for Empty Floor
             for (int i = 0; i < NUM_LEVELS; i++){
@@ -142,31 +146,27 @@ void *entrance_monitor(void *args) {
                 // If floor enough space, assign message,
                 if (vehicle_counter_floor[i] < FLOOR_CAPACITY) {
                     floor_signal = i;
-                    // Break Loop by changing i
-                    i = NUM_LEVELS + 1;
+                    break;
                 }
             }
 
+            info_sign_update(&shm_data->entrances[gate].info_sign, floor_signal + '0');
+
         // Store time the Car in hash table
             // Calculate Time in MS
-                gettimeofday(&time, NULL);
-                double current_time_ms = time.tv_sec * 1000 + time.tv_usec / 10000;
-                start_time[license_value] = current_time_ms;
+            gettimeofday(&time, NULL);
+            double current_time_ms = time.tv_sec * 1000 + time.tv_usec / 10000;
+            start_time[license_value] = current_time_ms;
 
         // Update Counter
-                vehicle_counter_total++;
+            vehicle_counter_total++;
 
         // Signal Boom Gate to Open
-                boom_gate_admit_one(&shm_data->entrances[gate].bgate);
-            }
-            else
-            {
-                info_sign_update(&shm_data->entrances->info_sign, 'X');
-            }
+            boom_gate_admit_one(&shm_data->entrances[gate].bgate);
         }
         else
         {
-            info_sign_update(&shm_data->entrances->info_sign, 'F');
+            info_sign_update(&shm_data->entrances[gate].info_sign, 'F');
         }
     } while(!quit);
 
@@ -209,6 +209,8 @@ void *exit_monitor(void *args) {
         
         // Open Gate
         boom_gate_admit_one(&shm_data->exits[ex_id].bgate); 
+
+        --vehicle_counter_total;
         
     } while(!quit);
 
@@ -289,6 +291,11 @@ int main(void)
 
     /* Wait for the simulator to signal that the shared memory is ready: */
     sem_wait(&handshake_data->shm_mem_ready);
+    // if(handshake_data->sim_started && !handshake_data->sim_closed)
+    // { /* Simulator started previously, but crashed. */
+    //     quit = true;
+    //     return -1;
+    // }
 
         /* Notify the simulator that the manager has successfully attached and is ready to start: */
     sem_post(&handshake_data->manager_linked);
@@ -366,4 +373,6 @@ int main(void)
     for (int i = 0; i < NUM_LEVELS; i++){
         pthread_join(lp_monitor_thread[i], NULL);
     }
+
+    sem_post(&handshake_data->manager_finished);
 }

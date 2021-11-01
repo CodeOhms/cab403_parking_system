@@ -15,6 +15,8 @@
 #define NUM_LEVELS 5
 #define FLOOR_CAPACITY 20
 #define TOTAL_CAPACITY FLOOR_CAPACITY*NUM_LEVELS
+#define SEM_LOCAL 0
+#define SEM_SHARED 1
 
 typedef struct license_plate_sensor_t
 {
@@ -76,7 +78,12 @@ typedef struct shared_handshake_t
 {
     sem_t shm_mem_ready;
     sem_t manager_linked;
-    sem_t simulator_finished;
+    sem_t simulator_closing;
+    sem_t manager_finished;
+    // sem_t simulator_finished;
+    // sem_t manager_closed;
+    // bool sim_started;
+    // bool sim_closed;
 } shared_handshake_t;
 
 /* Structure to manage the shared memory data */

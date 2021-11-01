@@ -134,13 +134,25 @@ int shm_data_init(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_attr
     shared_data_t *shm_data = (shared_data_t *)shared_mem.data;
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
 
+    /* Clear shared memory and shutdown if sim crashed last run: */
+    // if(handshake_data->sim_started && !handshake_data->sim_closed)
+    // {
+    //     destroy_shared_object(&shared_mem);
+    //     destroy_shared_object(&handshake_mem);
+    //     return -1;
+    // }
+
     /* Initialise shared memory variables: */
     pthread_mutexattr_setpshared(mutex_attr, PTHREAD_PROCESS_SHARED);
     pthread_condattr_setpshared(cond_attr, PTHREAD_PROCESS_SHARED);
         /* Handshake: */
-    sem_init(&handshake_data->shm_mem_ready, 1, 0);
-    sem_init(&handshake_data->manager_linked, 1, 0);
-    sem_init(&handshake_data->simulator_finished, 1, 0);
+    sem_init(&handshake_data->shm_mem_ready, 1, SEM_SHARED);
+    sem_init(&handshake_data->manager_linked, 1, SEM_SHARED);
+    sem_init(&handshake_data->simulator_closing, 1, SEM_SHARED);
+    sem_init(&handshake_data->manager_finished, 1, SEM_SHARED);
+    // sem_init(&handshake_data->simulator_closing, 1, SEM_SHARED);
+    // handshake_data->sim_started = true;
+    // handshake_data->sim_closed = false;
     
         /* Entrances: */
     for(uint8_t i = 0; i < NUM_ENTRANCES; ++i)
@@ -195,7 +207,8 @@ void shm_data_close(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_at
             /* Handshake: */
     sem_destroy(&handshake_data->shm_mem_ready);
     sem_destroy(&handshake_data->manager_linked);
-    sem_destroy(&handshake_data->simulator_finished);
+    sem_destroy(&handshake_data->simulator_closing);
+    sem_destroy(&handshake_data->manager_finished);
 
                 /* Entrances: */
     for(uint8_t i = 0; i < NUM_ENTRANCES; ++i)
@@ -230,16 +243,28 @@ void shm_data_close(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_at
         pthread_mutex_destroy(&shm_data->levels[i].lplate_sensor.lplate_sensor_mutex);
         pthread_cond_destroy(&shm_data->levels[i].lplate_sensor.lplate_sensor_update_flag);
     }
+
+    /* Destroy shared memory: */
+    destroy_shared_object(&shared_mem);
+    destroy_shared_object(&handshake_mem);
+
+    htab_destroy(&auth_vehicle_plates_htab);
+
+    random_close(&random_gen_mutex);
+    sem_destroy(&quit_sem);
+
+    // handshake_data->sim_started = false;
+    // handshake_data->sim_closed = true;
 }
 
 //////////////////// End shared memory functionality.
 
 //////////////////// Handshake functionality:
 
-void wait_for_manager(shared_handshake_t *handshake)
-{
-    sem_wait(&handshake->manager_linked);
-}
+// void wait_for_manager(shared_handshake_t *handshake)
+// {
+//     sem_wait(&handshake->manager_linked);
+// }
 
 //////////////////// End handshake functionality.
 
@@ -366,9 +391,9 @@ void entrance_queue_init(entrance_queues_sh_data_t *e_q_sh_data)
     /* Initialise the semaphores: */
     for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
     {
-        sem_init(&e_q_sh_data->full[e], 0, 0);
+        sem_init(&e_q_sh_data->full[e], 0, SEM_LOCAL);
     }
-    sem_init(&e_q_sh_data->cars_simulating, 0, 0);
+    sem_init(&e_q_sh_data->cars_simulating, 0, SEM_LOCAL);
 
     /* Initialise the mutexes: */
     for(uint8_t e = 0; e < NUM_ENTRANCES; ++e)
@@ -486,7 +511,8 @@ void generate_license_plate(char *lplate)
 void generate_unique_license_plate(char *lplate)
 {
     /* Ensure car doesn't currently exist (no license plate duplicates): */
-    if(random_int(&random_gen_mutex, 0, 1) == 0)
+    // if(random_int(&random_gen_mutex, 0, 1) == 0)
+    if(false)
     {
         do
         {
@@ -568,11 +594,11 @@ void *car_simulation_loop(void *args)
     lplate_sensor_trigger(&shm_data->entrances[en_id].lplate_sensor, car_data->license_plate);
 
     /* Get information from digital sign: */
-    char display = 'X';
+    char display;
     info_sign_read(&shm_data->entrances[en_id].info_sign, &display);
 
     /* Respond to information received from sign (if digit given continue, else rejected): */
-    if('0' <= display || display <= '9')
+    if('0' <= display && display <= '9')
     { /* Car allowed. */
     /* Deviant behaviour (30% chance): */
         uint8_t level = atoi(&display);
@@ -666,7 +692,7 @@ void *generate_cars_loop(void *args)
 int main(void)
 {
     quit = false;
-    sem_init(&quit_sem, 0, 0);
+    sem_init(&quit_sem, 0, SEM_LOCAL);
 
     random_init(&random_gen_mutex, time(0));
 
@@ -686,7 +712,7 @@ int main(void)
 
     /* Wait for the manager to open: */
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
-    wait_for_manager(handshake_data);
+    // wait_for_manager(handshake_data);
 
     /* Initialise threading: */
         /* Initialise variables needed for threads: */
@@ -718,7 +744,9 @@ int main(void)
     /* End of simulation: */
         /* Signal to manager it's closing time: */
     sem_wait(&quit_sem);
-    sem_post(&handshake_data->simulator_finished);
+    // sem_post(&handshake_data->simulator_finished);
+    sem_post(&handshake_data->simulator_closing);
+    sem_wait(&handshake_data->manager_finished);
 
     /* Close all threads: */
     thread_pool_close(&car_thread_pool);
@@ -732,14 +760,5 @@ int main(void)
     pthread_join(car_gen_thread, NULL);
     entrance_queue_close(&entrance_queues_sh_data);
 
-        /* Destroy shared memory: */
     shm_data_close(&mutex_attr, &cond_attr);
-    
-    destroy_shared_object(&shared_mem);
-    destroy_shared_object(&handshake_mem);
-
-    htab_destroy(&auth_vehicle_plates_htab);
-
-    random_close(&random_gen_mutex);
-    sem_destroy(&quit_sem);
 }
