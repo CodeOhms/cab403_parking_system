@@ -341,7 +341,7 @@ int main(void)
         printf("\n");
 
         for (int i = 0; i < NUM_ENTRANCES; i++){
-            printf("Entrance: %d \t| License Plate Reader: %s\t| Sign: %c\n", i + 1, entrance_lps_current[i],info_sign.display[i]);
+            printf("Entrance: %d \t| License Plate Reader: %s\t| Sign: %c\n", i + 1, entrance_lps_current[i],info_sign.display);
         }
         printf("\n");
 
