@@ -341,12 +341,12 @@ int main(void)
         printf("\n");
 
         for (int i = 0; i < NUM_ENTRANCES; i++){
-            printf("Entrance: %d \t| License Plate Reader: %s\t| Sign: %c\n", i + 1, entrance_lps_current[i],info_sign.display);
+            printf("Entrance: %d \t| License Plate Reader: %s\t| Boom Gate: %c\t| Sign: %c\n", i + 1, entrance_lps_current[i],| BOOM GATE STATE | ,info_sign.display);
         }
         printf("\n");
 
         for (int i = 0; i < NUM_EXITS; i++){
-            printf("Exit: %d \t| License Plate Reader: %s\n", i + 1, exit_lps_current[i]);
+            printf("Exit: %d \t| License Plate Reader: %s\t| Boom Gate: %c\n", i + 1, | BOOM GATE STATE | ,exit_lps_current[i]);
         }
 
         fflush(stdout);
