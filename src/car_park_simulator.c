@@ -138,10 +138,7 @@ int shm_data_init(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_attr
     pthread_mutexattr_setpshared(mutex_attr, PTHREAD_PROCESS_SHARED);
     pthread_condattr_setpshared(cond_attr, PTHREAD_PROCESS_SHARED);
         /* Handshake: */
-    // pthread_mutex_init(&handshake_data->link_mutex, &mutex_attr);
-    // pthread_cond_init(&handshake_data->link_sig, &cond_attr);
-    // pthread_mutex_init(&handshake_data->fin_mutex, &mutex_attr);
-    // pthread_cond_init(&handshake_data->fin_sig, &cond_attr);
+    sem_init(&handshake_data->shm_mem_ready, 1, 0);
     sem_init(&handshake_data->manager_linked, 1, 0);
     sem_init(&handshake_data->simulator_finished, 1, 0);
     
@@ -179,6 +176,9 @@ int shm_data_init(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_attr
         pthread_cond_init(&shm_data->levels[i].lplate_sensor.lplate_sensor_update_flag, cond_attr);
     }
 
+    /* Signal to the manager that the shared memory is ready: */
+    sem_post(&handshake_data->shm_mem_ready);
+
     return 0;
 }
 
@@ -193,10 +193,7 @@ void shm_data_close(pthread_mutexattr_t *mutex_attr, pthread_condattr_t *cond_at
 
         /* Destroy mutexes, condition variables and semaphores: */
             /* Handshake: */
-    // pthread_mutex_destroy(&handshake_data->link_mutex);
-    // pthread_cond_destroy(&handshake_data->link_sig);
-    // pthread_mutex_destroy(&handshake_data->fin_mutex);
-    // pthread_cond_destroy(&handshake_data->fin_sig);
+    sem_destroy(&handshake_data->shm_mem_ready);
     sem_destroy(&handshake_data->manager_linked);
     sem_destroy(&handshake_data->simulator_finished);
 
@@ -432,6 +429,8 @@ void *manage_entrances_loop(void *args)
         { /* Main thread pretending a car has arrived to wake us up: */
             break;
         }
+        pthread_mutex_lock(&occupy_mutex);
+
         pthread_mutex_lock(&e_queues_data->mutex[e_id]);
 
         /* Allow next car in: */
@@ -447,6 +446,7 @@ void *manage_entrances_loop(void *args)
         /* Note `llist_push()` will shallow copy the node data, so free the old copy: */
         llist_delete_dangling_node(old_next_car_node, NULL);
         
+        
         /* Spin off a thread for it: */
         car_management_info_t *car_man_info = (car_management_info_t *)malloc(sizeof(car_management_info_t));
         car_man_info->car_node = next_car_node;
@@ -457,7 +457,6 @@ void *manage_entrances_loop(void *args)
 
         /* Wait for the car thread that was just started to leave the entrance.
            Car thread will hold the mutex until it has left the entrance. */
-        pthread_mutex_lock(&occupy_mutex);
         pthread_cond_wait(&finished, &occupy_mutex);
         pthread_mutex_unlock(&occupy_mutex);
     } while(!quit);
@@ -606,14 +605,14 @@ void *car_simulation_loop(void *args)
     llist_delete_node(car_list, car_man_info->car_node);
     pthread_mutex_unlock(&car_list_mutex);
 
-    /* Free memory for car info, but not its contents (DO IT 2ND LAST): */
-    free(car_man_info);
-
     /* Signal to car generator that car has finished simulating: */
     pthread_mutex_lock(&cars_sim_ended_mutex);
     ++cars_sim_ended;
     sem_post(&e_queues_data->cars_simulating);
     pthread_mutex_unlock(&cars_sim_ended_mutex);
+
+    /* Free memory for car info, but not its contents: */
+    free(car_man_info);
 
     return NULL;
 }
@@ -687,7 +686,7 @@ int main(void)
 
     /* Wait for the manager to open: */
     shared_handshake_t *handshake_data = (shared_handshake_t *)handshake_mem.data;
-    wait_for_manager(&handshake_data);
+    wait_for_manager(handshake_data);
 
     /* Initialise threading: */
         /* Initialise variables needed for threads: */
