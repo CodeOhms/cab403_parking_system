@@ -125,6 +125,7 @@ void *entrance_monitor(void *args) {
         
         // Wait for License Plate
         lplate_sensor_read(&shm_data->entrances[gate].lplate_sensor, license);
+        strcpy(entrance_lps_current[floor],license);
         // Check if there is space in car park
         if (vehicle_counter_total < FLOOR_CAPACITY*NUM_LEVELS){
 
@@ -188,7 +189,7 @@ void *exit_monitor(void *args) {
 
         // Wait for License
         lplate_sensor_read(&shm_data->exits[ex_id].lplate_sensor, license);
-
+        strcpy(exit_lps_current[floor],license);
         // Get Value of License Plate
         item_t *find_res = htab_find(&vehicle_table, license);
         if(find_res == NULL)
@@ -233,6 +234,7 @@ void *lp_monitor( void *args) {
 
         // Update License
         lplate_sensor_read(&shm_data->levels[floor].lplate_sensor,license);
+        strcpy(level_lps_current[floor],license);
         // Get Value of License Plate
         item_t *find_res = htab_find(&vehicle_table, license);
         if(find_res == NULL)
@@ -330,6 +332,7 @@ int main(void)
 
     // Displaying Information
 
+    setvbuf(stdout, NULL, _IOFBF, 2000);
     do {
 
         system("clear");
@@ -350,6 +353,7 @@ int main(void)
             printf("Exit: %d \t| License Plate Reader: %s\t| Sign\n", i + 1, exit_lps_current[i]);
         }
 
+        fflush(stdout);
         delay_ms(1/FPS * 1000 * 1000, 1);
 
     } while(!quit);
