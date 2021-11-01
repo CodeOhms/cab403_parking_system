@@ -208,7 +208,10 @@ void *exit_monitor(void *args) {
         write_bill(license, bill);
         
         // Open Gate
-        boom_gate_admit_one(&shm_data->exits[ex_id].bgate); 
+        boom_gate_admit_one(&shm_data->exits[ex_id].bgate);
+
+        // Decrease Counter by 1
+        vehicle_counter_total--;
         
     } while(!quit);
 
